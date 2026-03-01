@@ -1,0 +1,64 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rh-planner
+  namespace: owner
+  labels:
+    app: rh-planner
+    hemisphere: right
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rh-planner
+  template:
+    metadata:
+      labels:
+        app: rh-planner
+        hemisphere: right
+    spec:
+      serviceAccountName: rh-planner
+      automountServiceAccountToken: true
+      containers:
+        - name: planner
+          image: rh-planner:latest
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+          env:
+            - name: VERTEX_ENDPOINT
+              value: ""
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi

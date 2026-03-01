@@ -1,0 +1,51 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hemisphere-operator
+  namespace: owner
+  labels:
+    app: hemisphere-operator
+    component: corpus-callosum
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hemisphere-operator
+  template:
+    metadata:
+      labels:
+        app: hemisphere-operator
+        component: corpus-callosum
+    spec:
+      serviceAccountName: hemisphere-operator
+      automountServiceAccountToken: true
+      containers:
+        - name: operator
+          image: operator:latest
+          env:
+            - name: LH_EXECUTOR_IMAGE
+              value: "lh-executor:latest"
+            - name: EMPLOYEE_NAMESPACE
+              value: "employee"
+          resources:
+            requests:
+              cpu: "250m"
+              memory: "512Mi"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 100Mi
