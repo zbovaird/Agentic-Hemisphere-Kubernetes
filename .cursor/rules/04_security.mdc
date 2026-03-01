@@ -1,0 +1,37 @@
+---
+description: Security governance for Kubernetes deployments and infrastructure.
+globs:
+alwaysApply: true
+---
+
+# Security Layer: Kubernetes and Infrastructure Governance
+
+## Workload Identity Mandate
+
+- All pod-to-GCP authentication MUST use Workload Identity Federation.
+- No service account keys, no secret JSON files, no environment variable credentials.
+- Each agent role (RH, LH, Operator) gets its own KSA-to-GSA binding with minimal IAM roles.
+
+## Pod Security
+
+- All LH (executor) pods MUST run with `runtimeClassName: gvisor` for kernel-level isolation.
+- All containers MUST set `allowPrivilegeEscalation: false` and `readOnlyRootFilesystem: true`.
+- The `employee` namespace MUST enforce the `restricted` PodSecurityStandard.
+
+## Network Isolation
+
+- LH pods may only reach Vertex AI endpoints and the operator service.
+- No lateral pod-to-pod communication in the `employee` namespace.
+- NetworkPolicies MUST be applied before any workload is deployed.
+
+## Resource Governance
+
+- ResourceQuotas on the `employee` namespace prevent sub-agent sprawl.
+- The operator MUST enforce pod count limits when spawning LH executors.
+- All Terraform resources must use the smallest viable tier for the current environment.
+
+## Secret Management
+
+- No secrets in Kubernetes manifests, Dockerfiles, or Terraform files.
+- All sensitive values come from Workload Identity or GCP Secret Manager.
+- `.gitignore` must exclude all credential files, `.env`, and `*.tfvars`.

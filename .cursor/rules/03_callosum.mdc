@@ -1,0 +1,46 @@
+---
+description: USE WHEN agents are communicating or handing off tasks.
+globs:
+alwaysApply: true
+---
+
+# The Corpus Callosum: The 2% Signaling Protocol
+
+Communication between Master and Emissary is limited to high-signal metadata via structured JSON handshakes.
+
+## Communication Constraints
+
+- **Selective Signaling:** Only 2% of total context is shared during a hand-off.
+- **Interhemispheric Inhibition:** The Master reviews every diff. Noisy output triggers a Suppression Signal.
+- **Data Compression:** Summarize raw outputs to 20 lines max before sending to the Master.
+
+## The JSON Handshake
+
+```json
+{
+  "intent_id": "k8s-phase-001",
+  "architectural_constraint": "GKE Autopilot only; minimal resource sizing; Workload Identity for auth.",
+  "target_files": ["terraform/modules/gke/main.tf", "terraform/variables.tf"],
+  "acceptance_criteria": [
+    "terraform validate passes",
+    "terraform plan shows expected resources",
+    "All tests pass"
+  ],
+  "implementation_proof": {
+    "test_log": "<stdout from pytest>",
+    "diff_summary": "<git diff --stat>",
+    "lint_status": "pass | fail"
+  }
+}
+```
+
+## Signal Types
+
+- **APPROVE** -- Master confirms alignment
+- **SUPPRESS** -- Master detects drift, forces rollback
+- **ESCALATE** -- Emissary hits clarification threshold (5 iterations)
+- **SURPRISE** -- Prediction deviates from actual outcome
+
+## Global Workspace
+
+Location: `.cursor/plans/workspace_state.json`

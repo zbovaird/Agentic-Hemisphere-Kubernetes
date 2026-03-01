@@ -1,0 +1,33 @@
+{
+  "intent_id": "k8s-scaffold-000",
+  "architectural_constraint": "Initialize repo with all foundational files. No implementation code yet -- skeleton only.",
+  "target_files": [
+    "LICENSE",
+    "README.md",
+    ".gitignore",
+    "pyproject.toml",
+    "Makefile",
+    ".cursor/rules/01_master_rh.mdc",
+    ".cursor/rules/02_emissary_lh.mdc",
+    ".cursor/rules/03_callosum.mdc",
+    ".cursor/rules/04_security.mdc",
+    ".cursor/plans/workspace_state.json",
+    "scripts/setup.sh",
+    "scripts/deploy.sh",
+    "docker/rh-planner/app/__init__.py",
+    "docker/lh-executor/app/__init__.py",
+    "operator/__init__.py",
+    "tests/__init__.py",
+    "tests/conftest.py"
+  ],
+  "acceptance_criteria": [
+    "All directories exist per the plan structure",
+    "LICENSE is MIT with Copyright (c) 2026 Zach Bovaird",
+    "README contains architecture diagram and quickstart",
+    "pyproject.toml has all required dependencies",
+    "Makefile targets: setup, lint, test, build, deploy, teardown",
+    "Cursor rules adapted for Kubernetes project context",
+    "Initial commit pushed to github.com/zbovaird/Agentic-Hemisphere-Kubernetes"
+  ],
+  "implementation_proof": null
+}

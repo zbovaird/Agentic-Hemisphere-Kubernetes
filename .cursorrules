@@ -1,0 +1,32 @@
+# Agentic-Hemisphere-Kubernetes
+
+This project deploys the bicameral AI agent architecture (Master-Emissary) on Kubernetes using GKE Autopilot, a Kopf-based operator, and Vertex AI.
+
+## Architecture Overview
+
+- **Master (RH):** Claude 4.6 Opus for planning, architecture, and code review (Plan Mode).
+- **Emissary (LH):** Gemini 2.5 Flash for implementation, TDD, and sequential tasks (Agent Mode).
+- **Corpus Callosum:** Kopf operator managing AgentTask CRDs with 2% signaling protocol.
+
+## Project Structure
+
+- `terraform/` -- GKE Autopilot, IAM/Workload Identity, Vertex AI, namespaces
+- `docker/rh-planner/` -- FastAPI-based RH planning agent
+- `docker/lh-executor/` -- Ephemeral LH task executor
+- `operator/` -- Kopf operator (AgentTask CRD controller)
+- `k8s/` -- Kustomize manifests (base + dev/prod overlays)
+- `tests/` -- Unit, integration, and benchmark tests
+- `.cursor/rules/` -- Agent behavior rules
+- `.cursor/plans/` -- Handshakes, signals, workspace state
+
+## Coding Standards
+
+1. **TDD:** Write tests first, confirm failure, then implement.
+2. **File Boundary:** Only modify files listed in the Master's `target_files`.
+3. **No Scope Creep:** Stay within the current phase.
+4. **Minimal Resources:** All infrastructure sized for testing, not production.
+5. **Security First:** Workload Identity only, gVisor on LH pods, no privilege escalation.
+
+## Handshake Protocol
+
+Master issues JSON handshakes with `intent_id`, `target_files`, and `acceptance_criteria`. Emissary returns `implementation_proof` or signals (`ESCALATE`, `SURPRISE`). Master reviews and issues `APPROVE` or `SUPPRESS`.
