@@ -1,0 +1,27 @@
+{
+  "intent_id": "k8s-containers-002",
+  "architectural_constraint": "Python 3.12-slim base images. Pydantic models must match the handshake/signal protocol from 03_callosum.mdc. RH Planner is a persistent FastAPI service. LH Executor is ephemeral (entrypoint-driven). Multi-stage Dockerfiles for minimal image size.",
+  "target_files": [
+    "docker/rh-planner/app/models.py",
+    "docker/rh-planner/app/planner.py",
+    "docker/rh-planner/app/main.py",
+    "docker/rh-planner/requirements.txt",
+    "docker/rh-planner/Dockerfile",
+    "docker/lh-executor/app/models.py",
+    "docker/lh-executor/app/executor.py",
+    "docker/lh-executor/app/main.py",
+    "docker/lh-executor/requirements.txt",
+    "docker/lh-executor/Dockerfile",
+    "tests/test_rh_planner.py",
+    "tests/test_lh_executor.py"
+  ],
+  "acceptance_criteria": [
+    "Pydantic models validate handshake, signals (APPROVE/SUPPRESS/ESCALATE/SURPRISE)",
+    "RH Planner /health, /plan, /review endpoints respond correctly",
+    "LH Executor processes task payloads and emits completion status",
+    "Both Dockerfiles build successfully",
+    "All unit tests pass",
+    "No secrets or credentials in images"
+  ],
+  "implementation_proof": null
+}
