@@ -53,6 +53,30 @@ Communication between hemispheres follows the **2% Signaling Protocol** -- only 
 - **ESCALATE** -- LH hits clarification threshold (5 iterations)
 - **SURPRISE** -- LH prediction deviates from actual outcome
 
+## Cost Benchmark
+
+The bicameral architecture saves ~50% on LLM costs compared to a monolithic Opus-only approach by routing implementation work through Gemini 2.5 Flash (100x cheaper tokens) while reserving Opus for planning and review.
+
+A restaurant POS scenario benchmark is included:
+
+```bash
+python scripts/pos_benchmark.py --days 30 --output-dir benchmark-results/
+```
+
+| Metric | Bicameral | Monolithic | Savings |
+|--------|-----------|------------|---------|
+| Daily cost (61 tasks) | $74.90 | $155.21 | 51.7% |
+| Monthly (30 days) | $2,247 | $4,656 | $2,409 |
+| Cost per employee txn | $0.68 | $1.19 | 43.3% |
+
+See [docs/pos-benchmark-analysis.md](docs/pos-benchmark-analysis.md) for the full breakdown including per-task token counts, infrastructure costs, and methodology.
+
+A built-in cost tracking module (`docker/rh-planner/app/cost/tracker.py`) records token usage, latency, and GKE pod-seconds per task in production, with structured logging for aggregation.
+
+## GCP Setup
+
+For first-time setup, see [CHROME_INSTRUCTIONS.md](CHROME_INSTRUCTIONS.md) for a step-by-step GCP project configuration guide (works with the Gemini Chrome extension), or [docs/gcp-setup-walkthrough.md](docs/gcp-setup-walkthrough.md) for the full manual walkthrough.
+
 ## Prerequisites
 
 - [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) (`gcloud`)
@@ -85,6 +109,22 @@ cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 
 # 6. Deploy everything
 make deploy
+```
+
+## Docker Images
+
+Container images for all three components (RH Planner, LH Executor, Operator) are built and pushed automatically as part of `make deploy`. The deployment script (`scripts/deploy.sh`) handles:
+
+1. Terraform provisioning (GKE cluster, IAM, Vertex AI, monitoring)
+2. kubectl credential configuration
+3. Docker build and push to Google Container Registry
+4. Kubernetes manifest application (CRDs, RBAC, deployments)
+
+You do not need to build or push images manually. If you want to build images separately:
+
+```bash
+make build   # Build all three images locally
+make push    # Push to GCR (requires gcloud auth configure-docker)
 ```
 
 ## Pipeline Integration
@@ -123,17 +163,27 @@ Tests cover four dimensions:
 | **Cost** | Resource sizing, Autopilot billing estimates | `make test-benchmarks` |
 | **Security** | RBAC enforcement, gVisor isolation, no privilege escalation | `make test-security` |
 
+## Security
+
+- **No hardcoded secrets.** All credentials use Workload Identity Federation (no service account keys).
+- **Terraform state** is gitignored and should be stored in a remote backend (GCS) for team use.
+- **Pod security** enforces `restricted` Pod Security Standard: no privilege escalation, read-only root filesystem, non-root user, all capabilities dropped.
+- **Network policies** implement default-deny with explicit allow rules per namespace.
+- **gVisor** sandboxes all LH executor pods at the kernel level.
+
 ## Project Structure
 
 ```
-├── terraform/          # Infrastructure-as-Code (GKE, IAM, Vertex AI)
+├── terraform/          # Infrastructure-as-Code (GKE, IAM, Vertex AI, monitoring)
 ├── docker/
 │   ├── rh-planner/     # Right Hemisphere: planning & review agent
+│   │   └── app/cost/   # Cost tracking module for bicameral vs monolithic comparison
 │   └── lh-executor/    # Left Hemisphere: ephemeral task executor
 ├── operator/           # Kopf-based Kubernetes operator (Corpus Callosum)
 ├── k8s/                # Kustomize manifests (base + dev/prod overlays)
-├── tests/              # Unit, integration, and benchmark tests
-├── scripts/            # Setup and deployment automation
+├── tests/              # Unit, integration, and benchmark tests (202 tests)
+├── scripts/            # Setup, deployment, and benchmark automation
+├── docs/               # GCP setup walkthrough, POS benchmark analysis
 └── .github/workflows/  # CI pipeline
 ```
 
