@@ -56,6 +56,16 @@ Enable **Email alerts to billing admins and users** under notifications.
 
 ## Step 4: Enable Required APIs
 
+**Option A — One command in your terminal (fastest):**
+
+If you already have `gcloud` installed and authenticated, run this single command to enable all 8 APIs at once:
+
+```bash
+gcloud services enable container.googleapis.com aiplatform.googleapis.com iam.googleapis.com compute.googleapis.com artifactregistry.googleapis.com monitoring.googleapis.com cloudresourcemanager.googleapis.com serviceusage.googleapis.com --project=agentic-hemisphere-test
+```
+
+**Option B — Click through the console:**
+
 Open these links one by one and click **Enable**:
 
 1. [Kubernetes Engine](https://console.cloud.google.com/apis/library/container.googleapis.com)
