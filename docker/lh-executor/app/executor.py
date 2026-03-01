@@ -10,6 +10,7 @@ from __future__ import annotations
 import asyncio
 import subprocess
 import sys
+import time
 
 import structlog
 
@@ -34,11 +35,16 @@ class Executor:
 
     async def execute(self, spec: TaskSpec) -> TaskResult:
         """Execute a task and return the result."""
+        start = time.monotonic()
+
         logger.info(
             "executing_task",
             intent_id=spec.intent_id,
             task_type=spec.task_type,
             target_model=spec.target_model,
+            hemisphere="left",
+            model=spec.target_model,
+            phase="implementation",
         )
 
         handler = self._get_handler(spec.task_type)
@@ -51,10 +57,21 @@ class Executor:
 
         try:
             result = await handler(spec)
+            elapsed_ms = (time.monotonic() - start) * 1000
+            input_tokens = len(str(spec.model_dump())) * 4
+            output_tokens = len(result.output) * 4 if result.output else 200
+
             logger.info(
                 "task_completed",
                 intent_id=spec.intent_id,
                 success=result.success,
+                hemisphere="left",
+                model=spec.target_model,
+                phase="implementation",
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                latency_ms=round(elapsed_ms, 2),
+                iteration=self._iteration_count,
             )
             return result
         except Exception as e:

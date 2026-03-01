@@ -7,6 +7,8 @@ The logic is structured to be testable without a live Vertex AI endpoint.
 
 from __future__ import annotations
 
+import time
+
 import structlog
 
 from .models import (
@@ -22,6 +24,8 @@ from .models import (
 
 logger = structlog.get_logger()
 
+MODEL_NAME = "claude-4.6-opus"
+
 
 class Planner:
     """Right Hemisphere planner that generates architectural plans and reviews diffs."""
@@ -32,12 +36,16 @@ class Planner:
 
     async def create_plan(self, request: PlanRequest) -> PlanResponse:
         """Generate an architectural plan as a Handshake for the LH Executor."""
+        start = time.monotonic()
         self._plan_count += 1
 
         logger.info(
             "creating_plan",
             intent_id=request.intent_id,
             description=request.description,
+            hemisphere="right",
+            model=MODEL_NAME,
+            phase="plan",
         )
 
         handshake = Handshake(
@@ -45,6 +53,21 @@ class Planner:
             architectural_constraint=f"Plan for: {request.description}",
             target_files=list(request.context.get("target_files", [])),
             acceptance_criteria=list(request.context.get("acceptance_criteria", ["All tests pass"])),
+        )
+
+        elapsed_ms = (time.monotonic() - start) * 1000
+        input_tokens = len(request.description) * 4 + sum(len(str(v)) for v in request.context.values()) * 4
+        output_tokens = len(str(handshake.model_dump())) * 4
+
+        logger.info(
+            "plan_completed",
+            intent_id=request.intent_id,
+            hemisphere="right",
+            model=MODEL_NAME,
+            phase="plan",
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=round(elapsed_ms, 2),
         )
 
         return PlanResponse(
@@ -55,16 +78,35 @@ class Planner:
 
     async def review(self, request: ReviewRequest) -> ReviewResponse:
         """Review an Emissary's implementation proof and issue APPROVE or SUPPRESS."""
+        start = time.monotonic()
+
         logger.info(
             "reviewing_implementation",
             intent_id=request.intent_id,
             lint_status=request.implementation_proof.lint_status,
+            hemisphere="right",
+            model=MODEL_NAME,
+            phase="review",
         )
 
         issues = self._check_for_issues(request)
 
         if issues:
-            logger.warning("review_suppressed", intent_id=request.intent_id, issues=issues)
+            elapsed_ms = (time.monotonic() - start) * 1000
+            input_tokens = len(str(request.model_dump())) * 4
+            output_tokens = sum(len(i) for i in issues) * 4
+
+            logger.warning(
+                "review_suppressed",
+                intent_id=request.intent_id,
+                issues=issues,
+                hemisphere="right",
+                model=MODEL_NAME,
+                phase="review",
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                latency_ms=round(elapsed_ms, 2),
+            )
             return ReviewResponse(
                 intent_id=request.intent_id,
                 approved=False,
@@ -75,7 +117,20 @@ class Planner:
                 ),
             )
 
-        logger.info("review_approved", intent_id=request.intent_id)
+        elapsed_ms = (time.monotonic() - start) * 1000
+        input_tokens = len(str(request.model_dump())) * 4
+        output_tokens = 200
+
+        logger.info(
+            "review_approved",
+            intent_id=request.intent_id,
+            hemisphere="right",
+            model=MODEL_NAME,
+            phase="review",
+            input_tokens=input_tokens,
+            output_tokens=output_tokens,
+            latency_ms=round(elapsed_ms, 2),
+        )
         return ReviewResponse(
             intent_id=request.intent_id,
             approved=True,

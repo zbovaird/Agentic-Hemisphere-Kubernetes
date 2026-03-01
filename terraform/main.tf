@@ -54,3 +54,11 @@ module "namespaces" {
 
   depends_on = [module.gke]
 }
+
+module "monitoring" {
+  source = "./modules/monitoring"
+
+  project_id = var.project_id
+
+  depends_on = [module.gke]
+}

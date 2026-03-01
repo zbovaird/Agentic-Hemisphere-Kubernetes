@@ -44,3 +44,8 @@ output "employee_namespace" {
   description = "Employee namespace name"
   value       = module.namespaces.employee_namespace
 }
+
+output "monitoring_dashboard_id" {
+  description = "Cloud Monitoring dashboard ID"
+  value       = module.monitoring.dashboard_id
+}
