@@ -1,0 +1,16 @@
+# Copy this file to terraform.tfvars and fill in your values:
+#   cp terraform.tfvars.example terraform.tfvars
+
+project_id   = "your-gcp-project-id"
+region       = "us-central1"
+cluster_name = "hemisphere-cluster"
+
+# Vertex AI (optional -- leave empty to skip model deployment)
+vertex_display_name  = "hemisphere-endpoint"
+vertex_model_id      = ""
+vertex_traffic_split = {}
+
+# Employee namespace resource quotas (minimal for testing)
+employee_cpu_quota    = "2"
+employee_memory_quota = "2Gi"
+employee_pod_quota    = "10"

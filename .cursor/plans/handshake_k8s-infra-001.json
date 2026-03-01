@@ -1,0 +1,36 @@
+{
+  "intent_id": "k8s-infra-001",
+  "architectural_constraint": "GKE Autopilot only. Minimal resource sizing for testing. Workload Identity for all auth -- no service account keys. Cloud-agnostic abstractions where practical. Terraform must pass validate and plan without errors.",
+  "target_files": [
+    "terraform/versions.tf",
+    "terraform/variables.tf",
+    "terraform/main.tf",
+    "terraform/outputs.tf",
+    "terraform/terraform.tfvars.example",
+    "terraform/modules/gke/main.tf",
+    "terraform/modules/gke/variables.tf",
+    "terraform/modules/gke/outputs.tf",
+    "terraform/modules/iam/main.tf",
+    "terraform/modules/iam/variables.tf",
+    "terraform/modules/iam/outputs.tf",
+    "terraform/modules/vertex/main.tf",
+    "terraform/modules/vertex/variables.tf",
+    "terraform/modules/vertex/outputs.tf",
+    "terraform/modules/namespaces/main.tf",
+    "terraform/modules/namespaces/variables.tf",
+    "terraform/modules/namespaces/outputs.tf",
+    "terraform/tests/terraform_test.py",
+    "tests/benchmarks/test_cost.py"
+  ],
+  "acceptance_criteria": [
+    "terraform validate passes on all modules",
+    "terraform plan produces expected resource counts",
+    "GKE uses Autopilot mode",
+    "All IAM bindings use Workload Identity Federation",
+    "Vertex AI endpoint supports traffic splitting",
+    "Namespaces: owner, manager, employee with ResourceQuotas on employee",
+    "All Python validation tests pass",
+    "No service account keys or secrets in any file"
+  ],
+  "implementation_proof": null
+}
