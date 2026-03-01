@@ -1,75 +1,45 @@
-# GCP Project Setup Checklist
+# GCP Setup: Assistant-Guided Walkthrough
 
-This checklist covers everything needed to configure Google Cloud Platform for the **Agentic-Hemisphere-Kubernetes** project. Each step includes the relevant GCP Console link and the exact values to use.
-
-**Tip:** If you have the Gemini Chrome extension, you can ask it questions like *"I'm on step 3, what do I do next?"* or *"What values should I enter for the budget?"* and it can reference this page to help you.
-
-**Estimated time:** 10-15 minutes
-**Budget cap:** $25
+This guide is designed for use with Gemini. If you are following this, you can ask: *"I'm on Step 2, what should I do?"* or *"Help me fill out the form in Step 4."*
 
 ---
 
-## Before You Start
+## Step 1: Create the Project
 
-You will need:
-- A Google account
-- A credit card for GCP billing verification (new accounts get **$300 in free credits**)
+**Action:** Go to [Project Creation](https://console.cloud.google.com/projectcreate).
+
+- **Project Name:** `agentic-hemisphere-test`
+- Leave Organization as default / "No organization"
+
+**What to tell Gemini:** *"I've clicked Create. The Project ID it gave me is [Insert ID here]."*
 
 ---
 
-## Checklist
+## Step 2: Billing & Project Selection
 
-### 1. Create a GCP Project
+**Action:** Ensure the project is active in the [Dashboard](https://console.cloud.google.com/home/dashboard).
 
-**Where:** [console.cloud.google.com/projectcreate](https://console.cloud.google.com/projectcreate)
+**Action:** Confirm billing is linked in [Billing Account Management](https://console.cloud.google.com/billing).
+
+- If you don't have a billing account, create one — new accounts get **$300 in free credits**
+- Link `agentic-hemisphere-test` to your billing account
+
+**What to tell Gemini:** *"I'm in the Billing console, does everything look linked?"*
+
+---
+
+## Step 3: Set the $25 Budget
+
+**Action:** Go to [Create Budget](https://console.cloud.google.com/billing/budgets/create).
 
 | Field | Value |
 |-------|-------|
-| Project name | `agentic-hemisphere-test` |
-| Organization | Leave as default / "No organization" |
-
-After creating the project, note your **Project ID** (shown below the name). It may have a numeric suffix like `agentic-hemisphere-test-428917`. You will need this ID throughout the setup.
-
-- [ ] Project created
-- [ ] Project ID noted: `___________________________`
-
----
-
-### 2. Link Billing
-
-**Where:** [console.cloud.google.com/billing](https://console.cloud.google.com/billing)
-
-If you don't have a billing account yet, create one and enter your payment information. New Google Cloud accounts receive **$300 in free trial credits**, which is more than enough for months of testing.
-
-Link the `agentic-hemisphere-test` project to your billing account.
-
-- [ ] Billing account exists and is active
-- [ ] Project is linked to billing account
-
----
-
-### 3. Select the Project
-
-**Where:** [console.cloud.google.com/home/dashboard](https://console.cloud.google.com/home/dashboard)
-
-Use the project selector dropdown at the top of the page to switch to `agentic-hemisphere-test`. Confirm the project name appears in the top navigation bar. All subsequent steps assume this project is selected.
-
-- [ ] Project selected in top bar
-
----
-
-### 4. Create a Budget Alert
-
-**Where:** [console.cloud.google.com/billing/budgets/create](https://console.cloud.google.com/billing/budgets/create)
-
-| Field | Value |
-|-------|-------|
-| Budget name | `hemisphere-test-budget` |
+| Budget Name | `hemisphere-test-budget` |
 | Projects | `agentic-hemisphere-test` |
-| Budget type | Specified amount |
-| Target amount | `25` (USD) |
+| Budget Type | Specified amount |
+| Target Amount | `25` |
 
-Set these alert thresholds:
+**Thresholds:**
 
 | Percent | Type |
 |---------|------|
@@ -78,50 +48,40 @@ Set these alert thresholds:
 | 90% | Actual |
 | 100% | Actual |
 
-Under notifications, enable **Email alerts to billing admins and users**.
+Enable **Email alerts to billing admins and users** under notifications.
 
-- [ ] Budget created at $25
-- [ ] Alert thresholds configured
-
----
-
-### 5. Enable APIs
-
-Enable each of the following 8 APIs. Click the link, then click the **Enable** button on the page.
-
-| API | Link |
-|-----|------|
-| Kubernetes Engine | [Enable](https://console.cloud.google.com/apis/library/container.googleapis.com) |
-| Vertex AI | [Enable](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com) |
-| IAM | [Enable](https://console.cloud.google.com/apis/library/iam.googleapis.com) |
-| Compute Engine | [Enable](https://console.cloud.google.com/apis/library/compute.googleapis.com) |
-| Artifact Registry | [Enable](https://console.cloud.google.com/apis/library/artifactregistry.googleapis.com) |
-| Cloud Monitoring | [Enable](https://console.cloud.google.com/apis/library/monitoring.googleapis.com) |
-| Cloud Resource Manager | [Enable](https://console.cloud.google.com/apis/library/cloudresourcemanager.googleapis.com) |
-| Service Usage | [Enable](https://console.cloud.google.com/apis/library/serviceusage.googleapis.com) |
-
-Verify all APIs are enabled at [console.cloud.google.com/apis/dashboard](https://console.cloud.google.com/apis/dashboard).
-
-- [ ] All 8 APIs enabled
+**What to tell Gemini:** *"I'm setting the thresholds, which ones were they again?"*
 
 ---
 
-### 6. Verify Everything
+## Step 4: Enable Required APIs
 
-**Where:** [console.cloud.google.com/home/dashboard](https://console.cloud.google.com/home/dashboard)
+Open these links one by one and click **Enable**:
 
-Confirm:
-- Project name shows `agentic-hemisphere-test`
-- Billing status shows as active/linked
-- APIs dashboard shows 8 enabled APIs
+1. [Kubernetes Engine](https://console.cloud.google.com/apis/library/container.googleapis.com)
+2. [Vertex AI](https://console.cloud.google.com/apis/library/aiplatform.googleapis.com)
+3. [IAM](https://console.cloud.google.com/apis/library/iam.googleapis.com)
+4. [Compute Engine](https://console.cloud.google.com/apis/library/compute.googleapis.com)
+5. [Artifact Registry](https://console.cloud.google.com/apis/library/artifactregistry.googleapis.com)
+6. [Cloud Monitoring](https://console.cloud.google.com/apis/library/monitoring.googleapis.com)
+7. [Cloud Resource Manager](https://console.cloud.google.com/apis/library/cloudresourcemanager.googleapis.com)
+8. [Service Usage](https://console.cloud.google.com/apis/library/serviceusage.googleapis.com)
 
-- [ ] Dashboard looks correct
+**What to tell Gemini:** *"I've enabled the APIs. Can you double-check the list for me?"*
 
 ---
 
-### 7. Local Terminal Setup
+## Step 5: Final Confirmation
 
-Open a terminal and authenticate with Google Cloud. Replace `YOUR_PROJECT_ID` with the Project ID you noted in Step 1.
+**Action:** Check the [API Dashboard](https://console.cloud.google.com/apis/dashboard) and confirm all 8 APIs are enabled.
+
+**What to tell Gemini:** *"Everything looks good on the dashboard. What do I do in the terminal next?"*
+
+---
+
+## Step 6: Local Terminal Setup
+
+Open a terminal and run these commands, replacing `YOUR_PROJECT_ID` with the Project ID from Step 1:
 
 ```bash
 gcloud auth login
@@ -136,14 +96,13 @@ cd Agentic-Hemisphere-Kubernetes/terraform
 cp terraform.tfvars.example terraform.tfvars
 ```
 
-Open `terraform.tfvars` in a text editor and set `project_id` to your actual Project ID.
+Open `terraform.tfvars` and set `project_id` to your actual Project ID.
 
-- [ ] Authenticated with `gcloud`
-- [ ] `terraform.tfvars` configured
+**What to tell Gemini:** *"I've set my project ID in terraform.tfvars. Am I ready to deploy?"*
 
 ---
 
-### 8. Deploy
+## Step 7: Deploy
 
 From the repository root:
 
@@ -154,21 +113,7 @@ make deploy
 
 This provisions the GKE Autopilot cluster, IAM bindings, Vertex AI endpoint, monitoring dashboard, and deploys all Kubernetes resources.
 
-- [ ] Deployment successful
-
----
-
-## Cost Summary
-
-| Resource | Estimated Monthly Cost |
-|----------|----------------------|
-| GKE Autopilot (idle) | ~$0 (pay-per-pod) |
-| GKE Autopilot (testing) | ~$17-23 |
-| Vertex AI (light usage) | ~$1-5 |
-| Cloud Monitoring | Free tier |
-| **Total (active testing)** | **~$18-28** |
-
-To stop all charges immediately:
+To tear everything down and stop all charges:
 
 ```bash
 make teardown
@@ -180,22 +125,19 @@ make teardown
 
 | Item | Value |
 |------|-------|
-| Project name | `agentic-hemisphere-test` |
-| Budget | $25 |
+| Project Name | `agentic-hemisphere-test` |
+| Budget | `25` USD |
 | Region | `us-central1` |
-| Cluster type | GKE Autopilot |
-| APIs | 8 (listed in Step 5) |
-| Teardown command | `make teardown` |
+| Cluster Type | GKE Autopilot |
+| APIs to Enable | 8 (listed in Step 4) |
+| Deploy Command | `make deploy` |
+| Teardown Command | `make teardown` |
+| Estimated Monthly Cost | ~$18-28 during active testing |
 
 ---
 
-## Common Issues
+## Why This Format Works
 
-| Problem | Solution |
-|---------|----------|
-| "You don't have permission" | Check IAM roles at [IAM Admin](https://console.cloud.google.com/iam-admin/iam) — your account needs **Owner** role |
-| "Billing account required" | Go back to Step 2 and link billing |
-| "API already enabled" | No action needed, move to the next API |
-| "Quota exceeded" | Request a quota increase at [Quotas](https://console.cloud.google.com/iam-admin/quotas) |
-| `gcloud` not found | Install the [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) |
-| Terraform errors | Run `terraform init` first, then check that `terraform.tfvars` has the correct Project ID |
+- **Direct Links:** Each step links to the exact GCP Console page, so Gemini can tell you exactly where to click without searching menus.
+- **Specific Values:** Project names, budget amounts, and commands are in `code blocks` so Gemini can read them back clearly.
+- **Checkpoints:** The "What to tell Gemini" prompts keep the assistant in the loop to validate your progress at each stage.
