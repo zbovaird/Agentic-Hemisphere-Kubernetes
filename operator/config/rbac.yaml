@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hemisphere-operator
+  namespace: owner
+  annotations:
+    iam.gke.io/gcp-service-account: "hemisphere-operator-sa@PROJECT_ID.iam.gserviceaccount.com"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hemisphere-operator
+rules:
+  - apiGroups: ["hemisphere.ai"]
+    resources: ["agenttasks"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["hemisphere.ai"]
+    resources: ["agenttasks/status"]
+    verbs: ["get", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "create", "delete"]
+  - apiGroups: [""]
+    resources: ["pods/log"]
+    verbs: ["get"]
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hemisphere-operator
+subjects:
+  - kind: ServiceAccount
+    name: hemisphere-operator
+    namespace: owner
+roleRef:
+  kind: ClusterRole
+  name: hemisphere-operator
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: lh-executor
+  namespace: employee
+  annotations:
+    iam.gke.io/gcp-service-account: "lh-executor-sa@PROJECT_ID.iam.gserviceaccount.com"
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: rh-planner
+  namespace: owner
+  annotations:
+    iam.gke.io/gcp-service-account: "rh-planner-sa@PROJECT_ID.iam.gserviceaccount.com"

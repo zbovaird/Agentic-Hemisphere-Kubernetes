@@ -1,0 +1,100 @@
+apiVersion: apiextensions.k8s.io/v1
+kind: CustomResourceDefinition
+metadata:
+  name: agenttasks.hemisphere.ai
+spec:
+  group: hemisphere.ai
+  names:
+    kind: AgentTask
+    listKind: AgentTaskList
+    plural: agenttasks
+    singular: agenttask
+    shortNames:
+      - at
+  scope: Namespaced
+  versions:
+    - name: v1
+      served: true
+      storage: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          required:
+            - spec
+          properties:
+            spec:
+              type: object
+              required:
+                - intent_id
+                - task_type
+              properties:
+                intent_id:
+                  type: string
+                  description: "Unique identifier linking this task to a Master handshake"
+                task_type:
+                  type: string
+                  enum:
+                    - execute
+                    - test
+                    - lint
+                  description: "Type of task for the LH Executor"
+                payload:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                  description: "Task-specific payload (command, test_path, etc.)"
+                target_model:
+                  type: string
+                  default: "gemini-2.5-flash"
+                  description: "AI model to use for this task"
+                timeout_seconds:
+                  type: integer
+                  default: 300
+                  description: "Maximum execution time before the task is killed"
+            status:
+              type: object
+              properties:
+                phase:
+                  type: string
+                  enum:
+                    - Pending
+                    - Running
+                    - Completed
+                    - Failed
+                    - Escalated
+                  description: "Current lifecycle phase of the task"
+                pod_name:
+                  type: string
+                  description: "Name of the LH pod executing this task"
+                result:
+                  type: object
+                  x-kubernetes-preserve-unknown-fields: true
+                  description: "Task result including output and proof"
+                signal:
+                  type: string
+                  enum:
+                    - APPROVE
+                    - SUPPRESS
+                    - ESCALATE
+                    - SURPRISE
+                  description: "Signal emitted by the executor"
+                started_at:
+                  type: string
+                  format: date-time
+                completed_at:
+                  type: string
+                  format: date-time
+      subresources:
+        status: {}
+      additionalPrinterColumns:
+        - name: Intent
+          type: string
+          jsonPath: .spec.intent_id
+        - name: Type
+          type: string
+          jsonPath: .spec.task_type
+        - name: Phase
+          type: string
+          jsonPath: .status.phase
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
