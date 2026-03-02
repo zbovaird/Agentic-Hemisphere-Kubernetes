@@ -1,14 +1,14 @@
-# Restaurant POS Benchmark: Cost Analysis
+# Cost Benchmark: Bicameral vs Monolithic Analysis
 
-This document breaks down the cost simulation from `scripts/pos_benchmark.py`, explaining what each number means, where the costs come from, and why the bicameral architecture saves money.
+This document breaks down the cost simulation from `scripts/cost_benchmark.py`, explaining what each number means, where the costs come from, and why the bicameral architecture saves money.
 
 ## Scenario
 
-A mid-size restaurant running an AI-powered POS system for one day of lunch and dinner service. Three role tiers interact with the system:
+A mid-size business running AI-powered operations for one day. Three role tiers interact with the system:
 
-- **Owner** (3 tasks/day): Strategic operations -- financial reports, inventory analysis, labor cost review
-- **Manager** (8 tasks/day): Operational management -- shift scheduling, swap handling, end-of-day reconciliation
-- **Employee** (50 tasks/day): Transactional operations -- placing orders, modifications, cancellations, payments, discounts
+- **Owner** (3 tasks/day): Strategic operations — financial reports, resource analysis, cost review
+- **Manager** (8 tasks/day): Operational management — scheduling, swap handling, end-of-day reconciliation
+- **Employee** (50 tasks/day): Transactional operations — creating transactions, modifications, cancellations, payments, promotions
 
 **Total: 61 tasks per day.**
 
@@ -65,31 +65,31 @@ The Vertex AI endpoint is provisioned but has no model deployed in the test conf
 
 | Task | Freq | Avg Plan Tokens (in/out) | Avg Impl Tokens (in/out) | Avg Iterations | Avg Review Tokens (in/out) |
 |------|------|--------------------------|--------------------------|----------------|---------------------------|
-| Generate daily P&L report | 1x | 161,905 / 3,456 | 282,279 / 44,018 | 5 | 133,278 / 2,518 |
-| Analyze inventory trends & reorder | 1x | 115,247 / 4,069 | 577,396 / 90,691 | 8 | 159,453 / 1,054 |
-| Review labor cost vs revenue ratio | 1x | 134,898 / 2,896 | 205,942 / 30,362 | 4 | 138,526 / 1,504 |
+| Generate daily financial report | 1x | 161,905 / 3,456 | 282,279 / 44,018 | 5 | 133,278 / 2,518 |
+| Analyze resource trends & replenishment | 1x | 115,247 / 4,069 | 577,396 / 90,691 | 8 | 159,453 / 1,054 |
+| Review cost vs revenue ratio | 1x | 134,898 / 2,896 | 205,942 / 30,362 | 4 | 138,526 / 1,504 |
 
-Owner tasks are the most complex. The inventory analysis requires 8 implementation iterations (scanning stock levels, computing trends, generating reorder recommendations), which produces ~577K input tokens and ~91K output tokens in the implementation phase alone.
+Owner tasks are the most complex. The resource analysis requires 8 implementation iterations (scanning levels, computing trends, generating replenishment recommendations), which produces ~577K input tokens and ~91K output tokens in the implementation phase alone.
 
 ### Manager Tasks (8/day)
 
 | Task | Freq | Avg Plan Tokens (in/out) | Avg Impl Tokens (in/out) | Avg Iterations | Avg Review Tokens (in/out) |
 |------|------|--------------------------|--------------------------|----------------|---------------------------|
-| Build weekly shift schedule | 2x | 104,305 / 2,875 | 164,280 / 28,178 | 4 | 111,157 / 1,185 |
-| Handle shift swap request | 3x | 75,426 / 2,105 | 46,234 / 7,213 | 1 | 88,280 / 740 |
-| End-of-day reconciliation report | 3x | 123,943 / 3,259 | 204,693 / 20,315 | 4 | 113,813 / 1,224 |
+| Build weekly schedule | 2x | 104,305 / 2,875 | 164,280 / 28,178 | 4 | 111,157 / 1,185 |
+| Handle schedule swap request | 3x | 75,426 / 2,105 | 46,234 / 7,213 | 1 | 88,280 / 740 |
+| End-of-day reconciliation | 3x | 123,943 / 3,259 | 204,693 / 20,315 | 4 | 113,813 / 1,224 |
 
-Shift swaps are simple (1 iteration), while scheduling and reconciliation require multiple passes.
+Schedule swaps are simple (1 iteration), while scheduling and reconciliation require multiple passes.
 
 ### Employee Tasks (50/day)
 
 | Task | Freq | Avg Plan Tokens (in/out) | Avg Impl Tokens (in/out) | Avg Iterations | Avg Review Tokens (in/out) |
 |------|------|--------------------------|--------------------------|----------------|---------------------------|
-| Place new dine-in order | 20x | 21,759 / 1,001 | 24,667 / 3,821 | 2 | 26,022 / 413 |
-| Modify existing order | 10x | 17,830 / 563 | 19,761 / 2,766 | 1 | 19,091 / 319 |
-| Cancel order with reason code | 5x | 11,985 / 401 | 9,322 / 1,448 | 1 | 12,387 / 273 |
-| Process split-check payment | 8x | 18,773 / 780 | 24,064 / 3,744 | 2 | 23,006 / 339 |
-| Apply discount/coupon | 7x | 12,708 / 506 | 9,460 / 964 | 1 | 13,281 / 250 |
+| Create new transaction | 20x | 21,759 / 1,001 | 24,667 / 3,821 | 2 | 26,022 / 413 |
+| Modify existing transaction | 10x | 17,830 / 563 | 19,761 / 2,766 | 1 | 19,091 / 319 |
+| Cancel transaction with reason | 5x | 11,985 / 401 | 9,322 / 1,448 | 1 | 12,387 / 273 |
+| Process split payment | 8x | 18,773 / 780 | 24,064 / 3,744 | 2 | 23,006 / 339 |
+| Apply promotion | 7x | 12,708 / 506 | 9,460 / 964 | 1 | 13,281 / 250 |
 
 Employee tasks are simple, single-iteration operations. They have the smallest token footprints but the highest volume (50/day = 82% of all tasks).
 
@@ -99,7 +99,7 @@ Employee tasks are simple, single-iteration operations. They have the smallest t
 
 ### Where the money goes
 
-For a single "Place new dine-in order" (employee task), here is the exact cost breakdown:
+For a single "Create new transaction" (employee task), here is the exact cost breakdown:
 
 **Bicameral architecture (Opus RH):**
 
@@ -149,7 +149,7 @@ The savings come from the implementation phase: Flash processes 24,667 input + 3
 
 ### Why owner tasks save the most (65.4%)
 
-Owner tasks have the highest implementation token counts (up to 577K input tokens for inventory analysis). In the bicameral model, these tokens go through Flash at $0.15/M instead of Opus at $5/M. The more implementation tokens a task has, the greater the savings.
+Owner tasks have the highest implementation token counts (up to 577K input tokens for resource analysis). In the bicameral model, these tokens go through Flash at $0.15/M instead of Opus at $5/M. The more implementation tokens a task has, the greater the savings.
 
 ### Why employee tasks still save 42.5%
 
@@ -190,7 +190,7 @@ Four optimization strategies can be applied independently or together:
 
 ### 1. Plan Caching (`--cache-plans`)
 
-Reuses plans for repeated task types. Employee tasks have an 80% cache hit rate (order placement is repetitive), managers 30%, owners 0% (each task is unique).
+Reuses plans for repeated task types. Employee tasks have an 80% cache hit rate (transaction creation is repetitive), managers 30%, owners 0% (each task is unique).
 
 | With Opus RH | Daily Cost | Reduction |
 |--------------|-----------|-----------|
@@ -208,7 +208,7 @@ Reduces input token counts by 60% through context summarization and RAG instead 
 
 ### 3. Batch Amortization (`--batch-similar`)
 
-Groups identical task types and amortizes one plan across the batch. 20 "Place order" tasks share 1 plan.
+Groups identical task types and amortizes one plan across the batch. 20 "Create new transaction" tasks share 1 plan.
 
 | With Opus RH | Daily Cost | Reduction |
 |--------------|-----------|-----------|
@@ -230,7 +230,7 @@ Employee tasks skip the Opus review phase entirely. Manager and owner tasks stil
 |--------------|-----------|----------------------|---------------|
 | All optimizations | $5.32 | 79.1% | 89.7% |
 
-With all four optimizations and Opus as the RH Planner, daily cost drops from $25.46 to $5.32 -- a 79% reduction from the unoptimized bicameral cost and 90% savings vs monolithic.
+With all four optimizations and Opus as the RH Planner, daily cost drops from $25.46 to $5.32 — a 79% reduction from the unoptimized bicameral cost and 90% savings vs monolithic.
 
 ---
 
@@ -250,7 +250,7 @@ Daily bicameral cost by RH model and optimization strategy:
 
 **Best combination:** DeepSeek R1 with all optimizations = **$0.97/day** (98.1% savings vs monolithic Opus).
 
-**Recommended production setup:** GPT-5 or Gemini 2.5 Pro with all optimizations = **$1.79/day** -- balances strong reasoning capability with 96.5% cost savings vs monolithic Opus.
+**Recommended production setup:** GPT-5 or Gemini 2.5 Pro with all optimizations = **$1.79/day** — balances strong reasoning capability with 96.5% cost savings vs monolithic Opus.
 
 ---
 
@@ -275,28 +275,28 @@ GKE Autopilot's pay-per-pod model means you only pay for the seconds each LH exe
 
 ```bash
 # Single day simulation (default: Opus RH, no optimizations)
-python scripts/pos_benchmark.py
+python scripts/cost_benchmark.py
 
 # 30-day simulation with JSON report
-python scripts/pos_benchmark.py --days 30 --output-dir benchmark-results/
+python scripts/cost_benchmark.py --days 30 --output-dir benchmark-results/
 
 # Use a different RH planner model
-python scripts/pos_benchmark.py --rh-model gemini-2.5-pro
+python scripts/cost_benchmark.py --rh-model gemini-2.5-pro
 
 # Enable individual optimizations
-python scripts/pos_benchmark.py --cache-plans
-python scripts/pos_benchmark.py --compress-prompts
-python scripts/pos_benchmark.py --batch-similar
-python scripts/pos_benchmark.py --skip-low-risk-review
+python scripts/cost_benchmark.py --cache-plans
+python scripts/cost_benchmark.py --compress-prompts
+python scripts/cost_benchmark.py --batch-similar
+python scripts/cost_benchmark.py --skip-low-risk-review
 
 # Enable all optimizations
-python scripts/pos_benchmark.py --all-optimizations
+python scripts/cost_benchmark.py --all-optimizations
 
 # Full multi-model x optimization comparison matrix
-python scripts/pos_benchmark.py --matrix --output-dir benchmark-results/
+python scripts/cost_benchmark.py --matrix --output-dir benchmark-results/
 
 # Combine: different model + optimizations + multi-day
-python scripts/pos_benchmark.py --rh-model deepseek-r1 --all-optimizations --days 30
+python scripts/cost_benchmark.py --rh-model deepseek-r1 --all-optimizations --days 30
 ```
 
 ## Methodology Notes

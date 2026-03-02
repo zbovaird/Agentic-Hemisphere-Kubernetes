@@ -57,12 +57,12 @@ Communication between hemispheres follows the **2% Signaling Protocol** -- only 
 
 The bicameral architecture saves ~51% on LLM costs compared to a monolithic Opus-only approach by routing implementation work through Gemini 2.5 Flash (33-42x cheaper tokens) while reserving the RH model for planning and review.
 
-A restaurant POS scenario benchmark is included with support for multiple RH planner models and optimization strategies:
+A cost benchmark simulates a multi-role workload (owner, manager, employee) with support for multiple RH planner models and optimization strategies:
 
 ```bash
-python scripts/pos_benchmark.py                          # Default: Opus RH, no optimizations
-python scripts/pos_benchmark.py --rh-model gemini-2.5-pro --all-optimizations
-python scripts/pos_benchmark.py --matrix                  # Full model x optimization comparison
+python scripts/cost_benchmark.py                          # Default: Opus RH, no optimizations
+python scripts/cost_benchmark.py --rh-model gemini-2.5-pro --all-optimizations
+python scripts/cost_benchmark.py --matrix                  # Full model x optimization comparison
 ```
 
 **Default (Opus RH, no optimizations):**
@@ -71,7 +71,7 @@ python scripts/pos_benchmark.py --matrix                  # Full model x optimiz
 |--------|-----------|------------|---------|
 | Daily cost (61 tasks) | $25.46 | $51.74 | 50.8% |
 | Monthly (30 days) | $764 | $1,552 | $788 |
-| Cost per employee txn | $0.23 | $0.40 | 42.5% |
+| Cost per high-volume txn | $0.23 | $0.40 | 42.5% |
 
 **With alternative models and optimizations (daily cost):**
 
@@ -81,7 +81,9 @@ python scripts/pos_benchmark.py --matrix                  # Full model x optimiz
 | GPT-5 / Gemini Pro | $7.30 | $1.79 | 96.5% savings |
 | DeepSeek R1 | $3.41 | $0.97 | 98.1% savings |
 
-See [docs/pos-benchmark-analysis.md](docs/pos-benchmark-analysis.md) for the full breakdown including per-task token counts, multi-model comparison matrix, optimization strategies, and methodology.
+See [docs/cost-benchmark-analysis.md](docs/cost-benchmark-analysis.md) for the full breakdown including per-task token counts, multi-model comparison matrix, optimization strategies, and methodology.
+
+**Example scenario:** The branch [`benchmark/restaurant-pos`](https://github.com/zbovaird/Agentic-Hemisphere-Kubernetes/tree/benchmark/restaurant-pos) contains a restaurant POS validation run with the same benchmark logic applied to that domain.
 
 A built-in cost tracking module (`docker/rh-planner/app/cost/tracker.py`) records token usage, latency, and GKE pod-seconds per task in production, with structured logging for aggregation.
 
@@ -195,7 +197,7 @@ Tests cover four dimensions:
 ├── k8s/                # Kustomize manifests (base + dev/prod overlays)
 ├── tests/              # Unit, integration, and benchmark tests (202 tests)
 ├── scripts/            # Setup, deployment, and benchmark automation
-├── docs/               # GCP setup walkthrough, POS benchmark analysis
+├── docs/               # GCP setup walkthrough, cost benchmark analysis
 └── .github/workflows/  # CI pipeline
 ```
 

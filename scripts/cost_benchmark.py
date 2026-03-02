@@ -1,18 +1,17 @@
 #!/usr/bin/env python3
-"""Restaurant POS scenario benchmark: bicameral vs monolithic cost comparison.
+"""Role-based cost benchmark: bicameral vs monolithic cost comparison.
 
-Simulates a full day of restaurant operations across three role tiers
-(Owner, Manager, Employee) and compares the cost of running each task
-through the bicameral (RH Planner + Flash Executor) architecture vs a
-monolithic (single-model) approach.
+Simulates a multi-role workload across three tiers (Owner, Manager, Employee)
+and compares the cost of running each task through the bicameral (RH Planner +
+Flash Executor) architecture vs a monolithic (single-model) approach.
 
 Supports multiple RH planner models and four optimization strategies.
 
 Usage:
-    python scripts/pos_benchmark.py
-    python scripts/pos_benchmark.py --days 7 --output-dir benchmark-results/
-    python scripts/pos_benchmark.py --rh-model gemini-2.5-pro --all-optimizations
-    python scripts/pos_benchmark.py --matrix
+    python scripts/cost_benchmark.py
+    python scripts/cost_benchmark.py --days 7 --output-dir benchmark-results/
+    python scripts/cost_benchmark.py --rh-model gemini-2.5-pro --all-optimizations
+    python scripts/cost_benchmark.py --matrix
 
 No live cluster, Docker images, or Vertex AI endpoint required.
 """
@@ -22,7 +21,6 @@ from __future__ import annotations
 import argparse
 import json
 import random
-from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -96,7 +94,7 @@ class OptimizationFlags:
 
 OWNER_TASKS = [
     TaskProfile(
-        name="Generate daily P&L report",
+        name="Generate daily financial report",
         role="owner",
         plan_input=(120_000, 180_000),
         plan_output=(3_000, 6_000),
@@ -109,7 +107,7 @@ OWNER_TASKS = [
         daily_frequency=1,
     ),
     TaskProfile(
-        name="Analyze inventory trends & reorder",
+        name="Analyze resource trends & replenishment",
         role="owner",
         plan_input=(100_000, 160_000),
         plan_output=(2_000, 5_000),
@@ -122,7 +120,7 @@ OWNER_TASKS = [
         daily_frequency=1,
     ),
     TaskProfile(
-        name="Review labor cost vs revenue ratio",
+        name="Review cost vs revenue ratio",
         role="owner",
         plan_input=(110_000, 170_000),
         plan_output=(2_500, 5_500),
@@ -138,7 +136,7 @@ OWNER_TASKS = [
 
 MANAGER_TASKS = [
     TaskProfile(
-        name="Build weekly shift schedule (12 employees)",
+        name="Build weekly schedule",
         role="manager",
         plan_input=(80_000, 120_000),
         plan_output=(2_000, 4_000),
@@ -151,7 +149,7 @@ MANAGER_TASKS = [
         daily_frequency=2,
     ),
     TaskProfile(
-        name="Handle shift swap request",
+        name="Handle schedule swap request",
         role="manager",
         plan_input=(60_000, 100_000),
         plan_output=(1_000, 3_000),
@@ -164,7 +162,7 @@ MANAGER_TASKS = [
         daily_frequency=3,
     ),
     TaskProfile(
-        name="End-of-day reconciliation report",
+        name="End-of-day reconciliation",
         role="manager",
         plan_input=(90_000, 140_000),
         plan_output=(2_000, 4_500),
@@ -180,7 +178,7 @@ MANAGER_TASKS = [
 
 EMPLOYEE_TASKS = [
     TaskProfile(
-        name="Place new dine-in order",
+        name="Create new transaction",
         role="employee",
         plan_input=(15_000, 30_000),
         plan_output=(500, 1_500),
@@ -193,7 +191,7 @@ EMPLOYEE_TASKS = [
         daily_frequency=20,
     ),
     TaskProfile(
-        name="Modify existing order",
+        name="Modify existing transaction",
         role="employee",
         plan_input=(10_000, 22_000),
         plan_output=(300, 1_000),
@@ -206,7 +204,7 @@ EMPLOYEE_TASKS = [
         daily_frequency=10,
     ),
     TaskProfile(
-        name="Cancel order with reason code",
+        name="Cancel transaction with reason",
         role="employee",
         plan_input=(8_000, 18_000),
         plan_output=(200, 800),
@@ -219,7 +217,7 @@ EMPLOYEE_TASKS = [
         daily_frequency=5,
     ),
     TaskProfile(
-        name="Process split-check payment",
+        name="Process split payment",
         role="employee",
         plan_input=(12_000, 25_000),
         plan_output=(400, 1_200),
@@ -232,7 +230,7 @@ EMPLOYEE_TASKS = [
         daily_frequency=8,
     ),
     TaskProfile(
-        name="Apply discount/coupon",
+        name="Apply promotion",
         role="employee",
         plan_input=(8_000, 16_000),
         plan_output=(200, 700),
@@ -363,7 +361,7 @@ def _build_batch_counts(profiles: list[TaskProfile], num_days: int) -> dict[str,
     return counts
 
 
-def run_pos_benchmark(
+def run_cost_benchmark(
     num_days: int = 1,
     rh_model_name: str = "claude-4.6-opus",
     opts: OptimizationFlags | None = None,
@@ -413,7 +411,7 @@ def run_pos_benchmark(
     report = {
         "benchmark_run": {
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "scenario": "Restaurant POS System",
+            "scenario": "Multi-role business operations",
             "num_days_simulated": num_days,
             "tasks_per_day": task_id // num_days,
             "total_tasks": len(tasks),
@@ -441,20 +439,20 @@ def run_pos_benchmark(
             "monthly_projected_savings": round((daily_mono - daily_bi) * 30, 2),
         },
         "per_role_summary": role_summary,
-        "employee_unit_economics": _employee_unit_economics(tasks),
+        "high_volume_unit_economics": _high_volume_unit_economics(tasks),
         "tasks": tasks,
     }
 
     if output_dir:
         output_dir.mkdir(parents=True, exist_ok=True)
-        report_path = output_dir / f"pos_benchmark_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+        report_path = output_dir / f"cost_benchmark_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
         report_path.write_text(json.dumps(report, indent=2))
         print(f"\nReport saved to: {report_path}")
 
     return report
 
 
-def _employee_unit_economics(tasks: list[dict]) -> dict:
+def _high_volume_unit_economics(tasks: list[dict]) -> dict:
     emp = [t for t in tasks if t["role"] == "employee"]
     if not emp:
         return {}
@@ -474,7 +472,7 @@ def print_report(report: dict) -> None:
     rh = RH_MODELS.get(run["rh_model"], RH_MODELS["claude-4.6-opus"])
 
     print("\n" + "=" * 72)
-    print("  RESTAURANT POS BENCHMARK: BICAMERAL vs MONOLITHIC")
+    print("  COST BENCHMARK: BICAMERAL vs MONOLITHIC")
     print("=" * 72)
     print(f"  Scenario:         {run['scenario']}")
     print(f"  Days simulated:   {run['num_days_simulated']}")
@@ -507,9 +505,9 @@ def print_report(report: dict) -> None:
     print(f"  {'Monolithic (Opus only)':30s} ${s['monthly_projected_monolithic']:>10.2f}")
     print(f"  {'Monthly savings':30s} ${s['monthly_projected_savings']:>10.2f}")
 
-    eu = report.get("employee_unit_economics", {})
+    eu = report.get("high_volume_unit_economics", {})
     if eu:
-        print(f"\n  EMPLOYEE UNIT ECONOMICS (per transaction)")
+        print(f"\n  HIGH-VOLUME UNIT ECONOMICS (per transaction)")
         print(f"  {'Transactions':30s} {eu['total_transactions']:>10d}")
         print(f"  {'Cost/txn (bicameral)':30s} ${eu['cost_per_transaction_bicameral']:>10.6f}")
         print(f"  {'Cost/txn (monolithic)':30s} ${eu['cost_per_transaction_monolithic']:>10.6f}")
@@ -533,10 +531,10 @@ def run_matrix(num_days: int = 1) -> dict:
     for opt in optimization_combos:
         matrix[opt.label] = {}
         for model_name in RH_MODELS:
-            report = run_pos_benchmark(num_days=num_days, rh_model_name=model_name, opts=opt)
+            report = run_cost_benchmark(num_days=num_days, rh_model_name=model_name, opts=opt)
             matrix[opt.label][model_name] = report["summary"]["daily_cost_bicameral"]
 
-    mono_report = run_pos_benchmark(num_days=num_days, rh_model_name="claude-4.6-opus", opts=OptimizationFlags())
+    mono_report = run_cost_benchmark(num_days=num_days, rh_model_name="claude-4.6-opus", opts=OptimizationFlags())
     mono_daily = mono_report["summary"]["daily_cost_monolithic"]
 
     return {"matrix": matrix, "monolithic_baseline": mono_daily, "num_days": num_days}
@@ -601,7 +599,7 @@ def print_matrix(result: dict) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Restaurant POS: bicameral vs monolithic cost benchmark")
+    parser = argparse.ArgumentParser(description="Role-based cost benchmark: bicameral vs monolithic")
     parser.add_argument("--days", type=int, default=1, help="Number of days to simulate (default: 1)")
     parser.add_argument("--output-dir", type=str, default=None, help="Directory to save JSON report")
     parser.add_argument("--rh-model", type=str, default="claude-4.6-opus",
@@ -634,7 +632,7 @@ def main() -> None:
     )
 
     output_dir = Path(args.output_dir) if args.output_dir else None
-    report = run_pos_benchmark(num_days=args.days, rh_model_name=args.rh_model, opts=opts, output_dir=output_dir)
+    report = run_cost_benchmark(num_days=args.days, rh_model_name=args.rh_model, opts=opts, output_dir=output_dir)
     print_report(report)
 
 
