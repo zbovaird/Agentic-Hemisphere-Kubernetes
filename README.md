@@ -4,13 +4,21 @@ Bicameral AI agent architecture deployed on Kubernetes. This project implements 
 
 ## Architecture
 
+The cluster uses three Kubernetes namespaces that represent **privilege tiers**, not business roles. You can rename them in `terraform/modules/namespaces/variables.tf` to match your domain (e.g. `control-plane`, `sandbox`, `gateway`).
+
+| Namespace (default) | Privilege Tier | What Runs Here |
+|---------------------|---------------|----------------|
+| `owner` | **High-trust** — full cluster access, Vertex AI, operator | RH Planner, Kopf Operator |
+| `employee` | **Sandboxed** — gVisor isolation, resource quotas, restricted PSS | Ephemeral LH Executor pods |
+| `manager` | **Mid-trust** — reserved for future TBAC/API gateway | *(not yet deployed)* |
+
 ```
 ┌─────────────────────────────────────────────────────────────┐
 │                    GKE Autopilot Cluster                     │
 │                                                              │
 │  ┌──────────────────┐    ┌──────────────────────────────┐   │
-│  │  owner namespace  │    │     employee namespace        │   │
-│  │                   │    │                               │   │
+│  │  owner (high-     │    │     employee (sandboxed)      │   │
+│  │  trust control)   │    │                               │   │
 │  │  ┌─────────────┐ │    │  ┌──────────┐  ┌──────────┐  │   │
 │  │  │ RH Planner  │ │    │  │ LH Pod 1 │  │ LH Pod 2 │  │   │
 │  │  │ (FastAPI)   │─┼────┼─>│ (gVisor) │  │ (gVisor) │  │   │
@@ -23,7 +31,8 @@ Bicameral AI agent architecture deployed on Kubernetes. This project implements 
 │  └──────────────────┘    └──────────────────────────────┘   │
 │                                                              │
 │  ┌──────────────────┐                                        │
-│  │ manager namespace │  (Reserved for future TBAC/gateway)   │
+│  │ manager (mid-     │  (Reserved for future TBAC/gateway)   │
+│  │ trust gateway)    │                                       │
 │  └──────────────────┘                                        │
 └──────────────────────────────────────────────────────────────┘
           │                              │
@@ -40,9 +49,9 @@ Bicameral AI agent architecture deployed on Kubernetes. This project implements 
 
 | Component | Role | Image | Namespace |
 |-----------|------|-------|-----------|
-| **RH Planner** | Architectural reasoning, plan generation, diff review | `rh-planner` | `owner` |
-| **LH Executor** | Task execution, tool calls via MCP, ephemeral | `lh-executor` | `employee` |
-| **Operator** | Watches `AgentTask` CRDs, spawns/manages LH pods | `operator` | `owner` |
+| **RH Planner** | Architectural reasoning, plan generation, diff review | `rh-planner` | `owner` (high-trust) |
+| **LH Executor** | Task execution, tool calls via MCP, ephemeral | `lh-executor` | `employee` (sandboxed) |
+| **Operator** | Watches `AgentTask` CRDs, spawns/manages LH pods | `operator` | `owner` (high-trust) |
 
 ### Signal Protocol
 
@@ -57,7 +66,7 @@ Communication between hemispheres follows the **2% Signaling Protocol** -- only 
 
 The bicameral architecture saves ~51% on LLM costs compared to a monolithic Opus-only approach by routing implementation work through Gemini 2.5 Flash (33-42x cheaper tokens) while reserving the RH model for planning and review.
 
-A cost benchmark simulates a multi-role workload (owner, manager, employee) with support for multiple RH planner models and optimization strategies:
+A cost benchmark simulates a multi-tier workload across the three privilege levels with support for multiple RH planner models and optimization strategies:
 
 ```bash
 python scripts/cost_benchmark.py                          # Default: Opus RH, no optimizations
@@ -181,24 +190,44 @@ Tests cover four dimensions:
 
 - **No hardcoded secrets.** All credentials use Workload Identity Federation (no service account keys).
 - **Terraform state** is gitignored and should be stored in a remote backend (GCS) for team use.
-- **Pod security** enforces `restricted` Pod Security Standard: no privilege escalation, read-only root filesystem, non-root user, all capabilities dropped.
+- **Pod security** enforces `restricted` Pod Security Standard on the sandboxed namespace: no privilege escalation, read-only root filesystem, non-root user, all capabilities dropped.
 - **Network policies** implement default-deny with explicit allow rules per namespace.
 - **gVisor** sandboxes all LH executor pods at the kernel level.
+- **Resource quotas** on the sandboxed namespace prevent sub-agent sprawl from starving the control plane.
+
+## Customization
+
+This repo is **domain-agnostic**. The namespace names, role tiers, and task profiles are generic defaults you can adapt to any use case.
+
+| What to Customize | Where | Example |
+|-------------------|-------|---------|
+| Namespace names | `terraform/modules/namespaces/variables.tf` | Rename `owner` → `control-plane`, `employee` → `sandbox` |
+| Resource quotas | `terraform/modules/namespaces/variables.tf` | Adjust CPU/memory/pod limits for your workload |
+| RH Planner model | `docker/rh-planner/app/main.py` | Swap Opus for GPT-5, Gemini Pro, or DeepSeek R1 |
+| LH Executor tools | `docker/lh-executor/` | Add MCP tools for your domain (databases, APIs, etc.) |
+| Benchmark tasks | `scripts/cost_benchmark.py` | Define task profiles matching your workload |
+| GCP project/region | `terraform/terraform.tfvars` | Set your `project_id` and preferred region |
+
+For a worked example of domain-specific customization, see the [`benchmark/restaurant-pos`](https://github.com/zbovaird/Agentic-Hemisphere-Kubernetes/tree/benchmark/restaurant-pos) branch.
 
 ## Project Structure
 
 ```
-├── terraform/          # Infrastructure-as-Code (GKE, IAM, Vertex AI, monitoring)
+├── terraform/              # Infrastructure-as-Code (GKE, IAM, Vertex AI, monitoring)
+│   └── modules/
+│       ├── namespaces/     # Namespace definitions and resource quotas (customize here)
+│       ├── iam/            # Workload Identity Federation bindings
+│       └── monitoring/     # Cloud Monitoring dashboard
 ├── docker/
-│   ├── rh-planner/     # Right Hemisphere: planning & review agent
-│   │   └── app/cost/   # Cost tracking module for bicameral vs monolithic comparison
-│   └── lh-executor/    # Left Hemisphere: ephemeral task executor
-├── operator/           # Kopf-based Kubernetes operator (Corpus Callosum)
-├── k8s/                # Kustomize manifests (base + dev/prod overlays)
-├── tests/              # Unit, integration, and benchmark tests (202 tests)
-├── scripts/            # Setup, deployment, and benchmark automation
-├── docs/               # GCP setup walkthrough, cost benchmark analysis
-└── .github/workflows/  # CI pipeline
+│   ├── rh-planner/         # Right Hemisphere: planning & review agent (FastAPI)
+│   │   └── app/cost/       # Cost tracking module for bicameral vs monolithic comparison
+│   └── lh-executor/        # Left Hemisphere: ephemeral task executor
+├── operator/               # Kopf-based Kubernetes operator (Corpus Callosum)
+├── k8s/                    # Kustomize manifests (base + dev/prod overlays)
+├── tests/                  # Unit, integration, and benchmark tests (202 tests)
+├── scripts/                # Setup, deployment, and benchmark automation
+├── docs/                   # GCP setup walkthrough, cost benchmark analysis
+└── .github/workflows/      # CI pipeline
 ```
 
 ## License
