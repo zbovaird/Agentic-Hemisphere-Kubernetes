@@ -37,7 +37,7 @@ class ModelPricing:
         )
 
 
-OPUS = ModelPricing("claude-4.6-opus", input_per_million=15.00, output_per_million=75.00)
+OPUS = ModelPricing("claude-4.6-opus", input_per_million=5.00, output_per_million=25.00)
 FLASH = ModelPricing("gemini-2.5-flash", input_per_million=0.15, output_per_million=0.60)
 
 TASK_PROFILES = {

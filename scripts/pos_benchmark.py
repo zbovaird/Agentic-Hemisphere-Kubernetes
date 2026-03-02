@@ -3,12 +3,16 @@
 
 Simulates a full day of restaurant operations across three role tiers
 (Owner, Manager, Employee) and compares the cost of running each task
-through the bicameral (Opus + Flash) architecture vs a monolithic
-(Opus-only) approach.
+through the bicameral (RH Planner + Flash Executor) architecture vs a
+monolithic (single-model) approach.
+
+Supports multiple RH planner models and four optimization strategies.
 
 Usage:
     python scripts/pos_benchmark.py
     python scripts/pos_benchmark.py --days 7 --output-dir benchmark-results/
+    python scripts/pos_benchmark.py --rh-model gemini-2.5-pro --all-optimizations
+    python scripts/pos_benchmark.py --matrix
 
 No live cluster, Docker images, or Vertex AI endpoint required.
 """
@@ -18,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import random
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -36,7 +41,15 @@ class ModelPricing:
         )
 
 
-OPUS = ModelPricing("claude-4.6-opus", input_per_million=15.00, output_per_million=75.00)
+RH_MODELS: dict[str, ModelPricing] = {
+    "claude-4.6-opus": ModelPricing("claude-4.6-opus", input_per_million=5.00, output_per_million=25.00),
+    "gpt-5": ModelPricing("gpt-5", input_per_million=1.25, output_per_million=10.00),
+    "gemini-2.5-pro": ModelPricing("gemini-2.5-pro", input_per_million=1.25, output_per_million=10.00),
+    "o3": ModelPricing("o3", input_per_million=2.00, output_per_million=8.00),
+    "deepseek-r1": ModelPricing("deepseek-r1", input_per_million=0.55, output_per_million=2.19),
+    "claude-haiku-4.5": ModelPricing("claude-haiku-4.5", input_per_million=1.00, output_per_million=5.00),
+}
+
 FLASH = ModelPricing("gemini-2.5-flash", input_per_million=0.15, output_per_million=0.60)
 
 AUTOPILOT_VCPU_HOUR = 0.0445
@@ -58,7 +71,28 @@ class TaskProfile:
     daily_frequency: int
 
 
-# --- Owner tasks: complex, strategic, RH-heavy ---
+@dataclass
+class OptimizationFlags:
+    cache_plans: bool = False
+    compress_prompts: bool = False
+    batch_similar: bool = False
+    skip_low_risk_review: bool = False
+
+    @property
+    def label(self) -> str:
+        if not any([self.cache_plans, self.compress_prompts, self.batch_similar, self.skip_low_risk_review]):
+            return "No optimization"
+        parts = []
+        if self.cache_plans:
+            parts.append("cache")
+        if self.compress_prompts:
+            parts.append("compress")
+        if self.batch_similar:
+            parts.append("batch")
+        if self.skip_low_risk_review:
+            parts.append("skip-review")
+        return "+ " + ", ".join(parts)
+
 
 OWNER_TASKS = [
     TaskProfile(
@@ -102,8 +136,6 @@ OWNER_TASKS = [
     ),
 ]
 
-# --- Manager tasks: medium complexity, balanced RH/LH ---
-
 MANAGER_TASKS = [
     TaskProfile(
         name="Build weekly shift schedule (12 employees)",
@@ -145,8 +177,6 @@ MANAGER_TASKS = [
         daily_frequency=3,
     ),
 ]
-
-# --- Employee tasks: simple, repetitive, LH-heavy ---
 
 EMPLOYEE_TASKS = [
     TaskProfile(
@@ -218,6 +248,9 @@ EMPLOYEE_TASKS = [
 
 ALL_PROFILES = OWNER_TASKS + MANAGER_TASKS + EMPLOYEE_TASKS
 
+CACHE_HIT_RATES = {"owner": 0.0, "manager": 0.30, "employee": 0.80}
+COMPRESSION_FACTOR = 0.40  # keep 40% of tokens (60% reduction)
+
 
 def _rand(r: tuple[int, int]) -> int:
     return random.randint(r[0], r[1])
@@ -227,7 +260,14 @@ def _randf(r: tuple[float, float]) -> float:
     return random.uniform(r[0], r[1])
 
 
-def simulate_task(task_id: int, profile: TaskProfile) -> dict:
+def simulate_task(
+    task_id: int,
+    profile: TaskProfile,
+    rh_model: ModelPricing,
+    opts: OptimizationFlags,
+    plan_cache: dict[str, tuple[int, int]],
+    batch_counts: dict[str, int],
+) -> dict:
     plan_in = _rand(profile.plan_input)
     plan_out = _rand(profile.plan_output)
     review_in = _rand(profile.review_input)
@@ -237,20 +277,52 @@ def simulate_task(task_id: int, profile: TaskProfile) -> dict:
     impl_in = sum(_rand(profile.impl_input_per_iter) for _ in range(iterations))
     impl_out = sum(_rand(profile.impl_output_per_iter) for _ in range(iterations))
 
+    plan_in_eff, plan_out_eff = plan_in, plan_out
+    review_in_eff, review_out_eff = review_in, review_out
+    impl_in_eff, impl_out_eff = impl_in, impl_out
+
+    cache_hit = False
+    if opts.cache_plans:
+        hit_rate = CACHE_HIT_RATES.get(profile.role, 0.0)
+        if profile.name in plan_cache and random.random() < hit_rate:
+            plan_in_eff, plan_out_eff = 0, 0
+            cache_hit = True
+        else:
+            plan_cache[profile.name] = (plan_in, plan_out)
+
+    if opts.compress_prompts:
+        plan_in_eff = int(plan_in_eff * COMPRESSION_FACTOR)
+        review_in_eff = int(review_in_eff * COMPRESSION_FACTOR)
+        impl_in_eff = int(impl_in_eff * COMPRESSION_FACTOR)
+
+    batch_divisor = 1
+    if opts.batch_similar:
+        count = batch_counts.get(profile.name, 1)
+        if count > 1:
+            batch_divisor = count
+            plan_in_eff = plan_in_eff // batch_divisor
+            plan_out_eff = plan_out_eff // batch_divisor
+
+    skip_review = False
+    if opts.skip_low_risk_review and profile.role == "employee":
+        review_in_eff, review_out_eff = 0, 0
+        skip_review = True
+
     pod_secs = _randf(profile.pod_seconds)
     pod_hours = pod_secs / 3600
     infra_cost = pod_hours * 0.25 * AUTOPILOT_VCPU_HOUR + pod_hours * 0.5 * AUTOPILOT_MEM_GB_HOUR
 
     bicameral_llm = (
-        OPUS.cost(plan_in, plan_out)
-        + FLASH.cost(impl_in, impl_out)
-        + OPUS.cost(review_in, review_out)
+        rh_model.cost(plan_in_eff, plan_out_eff)
+        + FLASH.cost(impl_in_eff, impl_out_eff)
+        + rh_model.cost(review_in_eff, review_out_eff)
     )
     bicameral_total = bicameral_llm + infra_cost
 
     total_in = plan_in + impl_in + review_in
     total_out = plan_out + impl_out + review_out
-    monolithic_total = OPUS.cost(total_in, total_out) + infra_cost
+    mono_model = RH_MODELS["claude-4.6-opus"]
+    monolithic_total = mono_model.cost(total_in, total_out) + infra_cost
 
     savings_pct = (1 - bicameral_total / monolithic_total) * 100 if monolithic_total > 0 else 0
 
@@ -259,10 +331,17 @@ def simulate_task(task_id: int, profile: TaskProfile) -> dict:
         "name": profile.name,
         "role": profile.role,
         "iterations": iterations,
+        "rh_model": rh_model.name,
+        "optimizations": {
+            "cache_hit": cache_hit,
+            "compression": opts.compress_prompts,
+            "batch_divisor": batch_divisor,
+            "review_skipped": skip_review,
+        },
         "tokens": {
-            "plan": {"input": plan_in, "output": plan_out},
-            "implementation": {"input": impl_in, "output": impl_out},
-            "review": {"input": review_in, "output": review_out},
+            "plan": {"input": plan_in, "output": plan_out, "effective_input": plan_in_eff, "effective_output": plan_out_eff},
+            "implementation": {"input": impl_in, "output": impl_out, "effective_input": impl_in_eff, "effective_output": impl_out_eff},
+            "review": {"input": review_in, "output": review_out, "effective_input": review_in_eff, "effective_output": review_out_eff},
             "total_input": total_in,
             "total_output": total_out,
         },
@@ -277,8 +356,26 @@ def simulate_task(task_id: int, profile: TaskProfile) -> dict:
     }
 
 
-def run_pos_benchmark(num_days: int = 1, output_dir: Path | None = None) -> dict:
+def _build_batch_counts(profiles: list[TaskProfile], num_days: int) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for p in profiles:
+        counts[p.name] = p.daily_frequency * num_days
+    return counts
+
+
+def run_pos_benchmark(
+    num_days: int = 1,
+    rh_model_name: str = "claude-4.6-opus",
+    opts: OptimizationFlags | None = None,
+    output_dir: Path | None = None,
+) -> dict:
     random.seed(42)
+    if opts is None:
+        opts = OptimizationFlags()
+
+    rh_model = RH_MODELS[rh_model_name]
+    plan_cache: dict[str, tuple[int, int]] = {}
+    batch_counts = _build_batch_counts(ALL_PROFILES, num_days) if opts.batch_similar else {}
 
     tasks: list[dict] = []
     task_id = 0
@@ -286,7 +383,7 @@ def run_pos_benchmark(num_days: int = 1, output_dir: Path | None = None) -> dict
         for profile in ALL_PROFILES:
             for _ in range(profile.daily_frequency):
                 task_id += 1
-                tasks.append(simulate_task(task_id, profile))
+                tasks.append(simulate_task(task_id, profile, rh_model, opts, plan_cache, batch_counts))
 
     total_bi = sum(t["cost"]["bicameral"] for t in tasks)
     total_mono = sum(t["cost"]["monolithic"] for t in tasks)
@@ -320,9 +417,12 @@ def run_pos_benchmark(num_days: int = 1, output_dir: Path | None = None) -> dict
             "num_days_simulated": num_days,
             "tasks_per_day": task_id // num_days,
             "total_tasks": len(tasks),
+            "rh_model": rh_model.name,
+            "optimizations": opts.label,
             "pricing": {
-                "opus": {"model": OPUS.name, "input_per_M": OPUS.input_per_million, "output_per_M": OPUS.output_per_million},
-                "flash": {"model": FLASH.name, "input_per_M": FLASH.input_per_million, "output_per_M": FLASH.output_per_million},
+                "rh": {"model": rh_model.name, "input_per_M": rh_model.input_per_million, "output_per_M": rh_model.output_per_million},
+                "lh": {"model": FLASH.name, "input_per_M": FLASH.input_per_million, "output_per_M": FLASH.output_per_million},
+                "monolithic_baseline": {"model": "claude-4.6-opus", "input_per_M": 5.00, "output_per_M": 25.00},
             },
             "infra_rates": {
                 "autopilot_vcpu_hour": AUTOPILOT_VCPU_HOUR,
@@ -365,13 +465,13 @@ def _employee_unit_economics(tasks: list[dict]) -> dict:
         "cost_per_transaction_bicameral": round(bi / len(emp), 6),
         "cost_per_transaction_monolithic": round(mo / len(emp), 6),
         "savings_per_transaction": round((mo - bi) / len(emp), 6),
-        "note": "Employee tasks dominate volume; this is where bicameral savings compound.",
     }
 
 
 def print_report(report: dict) -> None:
     s = report["summary"]
     run = report["benchmark_run"]
+    rh = RH_MODELS.get(run["rh_model"], RH_MODELS["claude-4.6-opus"])
 
     print("\n" + "=" * 72)
     print("  RESTAURANT POS BENCHMARK: BICAMERAL vs MONOLITHIC")
@@ -380,8 +480,10 @@ def print_report(report: dict) -> None:
     print(f"  Days simulated:   {run['num_days_simulated']}")
     print(f"  Tasks per day:    {run['tasks_per_day']}")
     print(f"  Total tasks:      {run['total_tasks']}")
-    print(f"  RH model:         {OPUS.name} (${OPUS.input_per_million}/${OPUS.output_per_million} per M tokens)")
+    print(f"  RH model:         {rh.name} (${rh.input_per_million}/${rh.output_per_million} per M tokens)")
     print(f"  LH model:         {FLASH.name} (${FLASH.input_per_million}/${FLASH.output_per_million} per M tokens)")
+    print(f"  Optimizations:    {run['optimizations']}")
+    print(f"  Mono baseline:    claude-4.6-opus ($5.00/$25.00 per M tokens)")
     print("-" * 72)
 
     print("\n  DAILY COST COMPARISON")
@@ -413,31 +515,126 @@ def print_report(report: dict) -> None:
         print(f"  {'Cost/txn (monolithic)':30s} ${eu['cost_per_transaction_monolithic']:>10.6f}")
         print(f"  {'Savings/txn':30s} ${eu['savings_per_transaction']:>10.6f}")
 
-    print("\n" + "=" * 72)
+    print("\n" + "=" * 72 + "\n")
 
-    print("\n  WHAT THIS MEANS")
-    print("  " + "─" * 68)
-    if s["monthly_projected_savings"] > 0:
-        pct = s["average_savings_percentage"]
-        monthly_save = s["monthly_projected_savings"]
-        annual_save = monthly_save * 12
-        print(f"  The bicameral architecture saves {pct:.1f}% on LLM costs for this POS workload.")
-        print(f"  That is ${monthly_save:.2f}/month or ${annual_save:.2f}/year.")
-        print(f"  The savings come primarily from routing high-volume employee tasks")
-        print(f"  (order placement, modifications, payments) through the cheaper Flash")
-        print(f"  model, while reserving Opus for owner-level strategic analysis and")
-        print(f"  manager-level scheduling that genuinely benefits from deeper reasoning.")
-    print("=" * 72 + "\n")
+
+def run_matrix(num_days: int = 1) -> dict:
+    """Run all model x optimization combinations and return a comparison matrix."""
+    optimization_combos = [
+        OptimizationFlags(),
+        OptimizationFlags(cache_plans=True),
+        OptimizationFlags(compress_prompts=True),
+        OptimizationFlags(batch_similar=True),
+        OptimizationFlags(skip_low_risk_review=True),
+        OptimizationFlags(cache_plans=True, compress_prompts=True, batch_similar=True, skip_low_risk_review=True),
+    ]
+
+    matrix: dict[str, dict[str, float]] = {}
+    for opt in optimization_combos:
+        matrix[opt.label] = {}
+        for model_name in RH_MODELS:
+            report = run_pos_benchmark(num_days=num_days, rh_model_name=model_name, opts=opt)
+            matrix[opt.label][model_name] = report["summary"]["daily_cost_bicameral"]
+
+    mono_report = run_pos_benchmark(num_days=num_days, rh_model_name="claude-4.6-opus", opts=OptimizationFlags())
+    mono_daily = mono_report["summary"]["daily_cost_monolithic"]
+
+    return {"matrix": matrix, "monolithic_baseline": mono_daily, "num_days": num_days}
+
+
+def print_matrix(result: dict) -> None:
+    matrix = result["matrix"]
+    mono = result["monolithic_baseline"]
+    models = list(RH_MODELS.keys())
+    short_names = {
+        "claude-4.6-opus": "Opus",
+        "gpt-5": "GPT-5",
+        "gemini-2.5-pro": "Gem Pro",
+        "o3": "o3",
+        "deepseek-r1": "DeepSeek",
+        "claude-haiku-4.5": "Haiku",
+    }
+
+    col_w = 10
+    label_w = 28
+    header = f"  {'':>{label_w}s}"
+    for m in models:
+        header += f"  {short_names.get(m, m):>{col_w}s}"
+
+    print("\n" + "=" * (label_w + 2 + (col_w + 2) * len(models) + 4))
+    print("  MULTI-MODEL x OPTIMIZATION MATRIX (daily cost, bicameral)")
+    print("=" * (label_w + 2 + (col_w + 2) * len(models) + 4))
+    print(header)
+    print(f"  {'':>{label_w}s}" + ("  " + "─" * col_w) * len(models))
+
+    for opt_label, model_costs in matrix.items():
+        row = f"  {opt_label:>{label_w}s}"
+        for m in models:
+            cost = model_costs.get(m, 0)
+            row += f"  ${cost:>{col_w - 1}.2f}"
+        print(row)
+
+    print(f"  {'─' * (label_w + (col_w + 2) * len(models) + 2)}")
+    row = f"  {'Monolithic Opus baseline':>{label_w}s}"
+    row += f"  ${mono:>{col_w - 1}.2f}"
+    for _ in models[1:]:
+        row += f"  {'--':>{col_w}s}"
+    print(row)
+
+    best_label = ""
+    best_model = ""
+    best_cost = float("inf")
+    for opt_label, model_costs in matrix.items():
+        for m, c in model_costs.items():
+            if c < best_cost:
+                best_cost = c
+                best_model = m
+                best_label = opt_label
+
+    print(f"\n  Best combo: {short_names.get(best_model, best_model)} with {best_label} "
+          f"= ${best_cost:.2f}/day (vs ${mono:.2f} monolithic)")
+    savings = (1 - best_cost / mono) * 100 if mono > 0 else 0
+    print(f"  Savings: {savings:.1f}% vs monolithic Opus baseline")
+    print("=" * (label_w + 2 + (col_w + 2) * len(models) + 4) + "\n")
+
+    return
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Restaurant POS: bicameral vs monolithic cost benchmark")
     parser.add_argument("--days", type=int, default=1, help="Number of days to simulate (default: 1)")
     parser.add_argument("--output-dir", type=str, default=None, help="Directory to save JSON report")
+    parser.add_argument("--rh-model", type=str, default="claude-4.6-opus",
+                        choices=list(RH_MODELS.keys()),
+                        help="RH planner model to use (default: claude-4.6-opus)")
+    parser.add_argument("--cache-plans", action="store_true", help="Enable plan caching optimization")
+    parser.add_argument("--compress-prompts", action="store_true", help="Enable prompt compression (60%% reduction)")
+    parser.add_argument("--batch-similar", action="store_true", help="Enable batch amortization of plans")
+    parser.add_argument("--skip-low-risk-review", action="store_true", help="Skip review for employee tasks")
+    parser.add_argument("--all-optimizations", action="store_true", help="Enable all four optimizations")
+    parser.add_argument("--matrix", action="store_true", help="Run full model x optimization comparison matrix")
     args = parser.parse_args()
 
+    if args.matrix:
+        result = run_matrix(num_days=args.days)
+        print_matrix(result)
+        if args.output_dir:
+            out = Path(args.output_dir)
+            out.mkdir(parents=True, exist_ok=True)
+            path = out / f"matrix_{datetime.now(timezone.utc).strftime('%Y%m%d_%H%M%S')}.json"
+            path.write_text(json.dumps(result, indent=2, default=str))
+            print(f"Matrix saved to: {path}")
+        return
+
+    opts = OptimizationFlags(
+        cache_plans=args.all_optimizations or args.cache_plans,
+        compress_prompts=args.all_optimizations or args.compress_prompts,
+        batch_similar=args.all_optimizations or args.batch_similar,
+        skip_low_risk_review=args.all_optimizations or args.skip_low_risk_review,
+    )
+
     output_dir = Path(args.output_dir) if args.output_dir else None
-    report = run_pos_benchmark(num_days=args.days, output_dir=output_dir)
+    report = run_pos_benchmark(num_days=args.days, rh_model_name=args.rh_model, opts=opts, output_dir=output_dir)
     print_report(report)
 
 

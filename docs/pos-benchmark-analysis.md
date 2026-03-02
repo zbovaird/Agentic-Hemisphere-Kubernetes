@@ -16,14 +16,27 @@ A mid-size restaurant running an AI-powered POS system for one day of lunch and 
 
 ## Pricing Inputs
 
-### LLM API Costs
+### LLM API Costs (as of March 2026)
 
 | Model | Role | Input (per 1M tokens) | Output (per 1M tokens) | Source |
 |-------|------|-----------------------|------------------------|--------|
-| Claude 4.6 Opus | RH Planner (plan + review) | $15.00 | $75.00 | Anthropic API pricing |
+| Claude 4.6 Opus | RH Planner (plan + review) | $5.00 | $25.00 | Anthropic API pricing |
 | Gemini 2.5 Flash | LH Executor (implementation) | $0.15 | $0.60 | Google Vertex AI pricing |
 
-The price difference is **100x on input** and **125x on output**. This is the core economic lever of the bicameral architecture.
+The price difference is **33x on input** and **42x on output**. This is the core economic lever of the bicameral architecture.
+
+> **Note:** Previous versions of this analysis used Opus 4.1 pricing ($15/$75 per M tokens). Anthropic reduced Opus pricing by 67% with the 4.5/4.6 releases, bringing it to $5/$25. All numbers in this document reflect the current pricing.
+
+### Alternative RH Planner Models
+
+| Model | Input/M | Output/M | Notes |
+|-------|---------|----------|-------|
+| Claude 4.6 Opus | $5.00 | $25.00 | Default; strongest reasoning |
+| GPT-5 | $1.25 | $10.00 | Strong general-purpose alternative |
+| Gemini 2.5 Pro | $1.25 | $10.00 | Matches GPT-5 pricing, 1M context |
+| o3 | $2.00 | $8.00 | OpenAI reasoning model |
+| DeepSeek R1 | $0.55 | $2.19 | Lowest cost reasoning model |
+| Claude Haiku 4.5 | $1.00 | $5.00 | Fast, cost-efficient Anthropic model |
 
 ### GKE Autopilot Infrastructure
 
@@ -64,7 +77,7 @@ Owner tasks are the most complex. The inventory analysis requires 8 implementati
 |------|------|--------------------------|--------------------------|----------------|---------------------------|
 | Build weekly shift schedule | 2x | 104,305 / 2,875 | 164,280 / 28,178 | 4 | 111,157 / 1,185 |
 | Handle shift swap request | 3x | 75,426 / 2,105 | 46,234 / 7,213 | 1 | 88,280 / 740 |
-| End-of-day reconciliation report | 3x | 123,943 / 3,259 | 204,693 / 20,315 | 3 | 113,813 / 1,224 |
+| End-of-day reconciliation report | 3x | 123,943 / 3,259 | 204,693 / 20,315 | 4 | 113,813 / 1,224 |
 
 Shift swaps are simple (1 iteration), while scheduling and reconciliation require multiple passes.
 
@@ -72,10 +85,10 @@ Shift swaps are simple (1 iteration), while scheduling and reconciliation requir
 
 | Task | Freq | Avg Plan Tokens (in/out) | Avg Impl Tokens (in/out) | Avg Iterations | Avg Review Tokens (in/out) |
 |------|------|--------------------------|--------------------------|----------------|---------------------------|
-| Place new dine-in order | 20x | 21,759 / 1,001 | 24,667 / 3,821 | 1 | 26,022 / 413 |
+| Place new dine-in order | 20x | 21,759 / 1,001 | 24,667 / 3,821 | 2 | 26,022 / 413 |
 | Modify existing order | 10x | 17,830 / 563 | 19,761 / 2,766 | 1 | 19,091 / 319 |
 | Cancel order with reason code | 5x | 11,985 / 401 | 9,322 / 1,448 | 1 | 12,387 / 273 |
-| Process split-check payment | 8x | 18,773 / 780 | 24,064 / 3,744 | 1 | 23,006 / 339 |
+| Process split-check payment | 8x | 18,773 / 780 | 24,064 / 3,744 | 2 | 23,006 / 339 |
 | Apply discount/coupon | 7x | 12,708 / 506 | 9,460 / 964 | 1 | 13,281 / 250 |
 
 Employee tasks are simple, single-iteration operations. They have the smallest token footprints but the highest volume (50/day = 82% of all tasks).
@@ -88,38 +101,38 @@ Employee tasks are simple, single-iteration operations. They have the smallest t
 
 For a single "Place new dine-in order" (employee task), here is the exact cost breakdown:
 
-**Bicameral architecture:**
+**Bicameral architecture (Opus RH):**
 
 | Phase | Model | Input Tokens | Output Tokens | Cost |
 |-------|-------|-------------|---------------|------|
-| Plan | Opus | 21,759 | 1,001 | $0.3264 + $0.0751 = **$0.4015** |
+| Plan | Opus | 21,759 | 1,001 | $0.1088 + $0.0250 = **$0.1338** |
 | Implementation | Flash | 24,667 | 3,821 | $0.0037 + $0.0023 = **$0.0060** |
-| Review | Opus | 26,022 | 413 | $0.3903 + $0.0310 = **$0.4213** |
+| Review | Opus | 26,022 | 413 | $0.1301 + $0.0103 = **$0.1404** |
 | GKE Pod (6.1s) | Infra | -- | -- | **$0.0000** |
-| **Total** | | | | **$0.8289** |
+| **Total** | | | | **$0.2803** |
 
 **Monolithic architecture (same task, all Opus):**
 
 | Phase | Model | Input Tokens | Output Tokens | Cost |
 |-------|-------|-------------|---------------|------|
-| All phases | Opus | 72,448 | 5,235 | $1.0867 + $0.3926 = **$1.4794** |
+| All phases | Opus | 72,448 | 5,235 | $0.3622 + $0.1309 = **$0.4932** |
 | GKE Pod (6.1s) | Infra | -- | -- | **$0.0000** |
-| **Total** | | | | **$1.4795** |
+| **Total** | | | | **$0.4932** |
 
-**Savings: $0.65/transaction (44%)**
+**Savings: $0.21/transaction (43%)**
 
-The savings come from the implementation phase: Flash processes 24,667 input + 3,821 output tokens for $0.006, while Opus would charge $0.66 for the same tokens. The plan and review phases still use Opus because they require reasoning about correctness.
+The savings come from the implementation phase: Flash processes 24,667 input + 3,821 output tokens for $0.006, while Opus would charge $0.22 for the same tokens.
 
 ### Cost driver analysis
 
 | Cost Component | Daily Bicameral | Daily Monolithic | % of Total (Bi) |
 |----------------|-----------------|------------------|------------------|
-| Opus API (plan + review) | ~$74.87 | -- | 99.97% |
-| Flash API (implementation) | ~$0.02 | -- | 0.03% |
-| Opus API (all phases) | -- | ~$155.19 | -- |
+| Opus API (plan + review) | ~$25.44 | -- | 99.9% |
+| Flash API (implementation) | ~$0.02 | -- | 0.1% |
+| Opus API (all phases) | -- | ~$51.73 | -- |
 | GKE Autopilot pods | ~$0.006 | ~$0.006 | <0.01% |
 | Vertex AI endpoint | $0.00 | $0.00 | 0% |
-| **Total** | **$74.90** | **$155.21** | |
+| **Total** | **$25.46** | **$51.74** | |
 
 **Key insight:** LLM API costs are 99.99% of the total. Infrastructure is essentially free at this scale. The entire daily GKE cost for 61 tasks is less than a penny.
 
@@ -129,18 +142,18 @@ The savings come from the implementation phase: Flash processes 24,667 input + 3
 
 | Role | Tasks/Day | Bicameral/Day | Monolithic/Day | Savings | Avg Cost/Task (Bi) | Avg Cost/Task (Mono) |
 |------|-----------|---------------|----------------|---------|--------------------|-----------------------|
-| Owner | 3 | $14.07 | $42.18 | 66.6% | $4.69 | $14.06 |
-| Manager | 8 | $27.03 | $53.43 | 49.4% | $3.38 | $6.68 |
-| Employee | 50 | $33.79 | $59.60 | 43.3% | $0.68 | $1.19 |
-| **Total** | **61** | **$74.90** | **$155.21** | **51.7%** | **$1.23** | **$2.54** |
+| Owner | 3 | $4.86 | $14.06 | 65.4% | $1.62 | $4.69 |
+| Manager | 8 | $9.18 | $17.81 | 48.5% | $1.15 | $2.23 |
+| Employee | 50 | $11.42 | $19.87 | 42.5% | $0.23 | $0.40 |
+| **Total** | **61** | **$25.46** | **$51.74** | **50.8%** | **$0.42** | **$0.85** |
 
-### Why owner tasks save the most (66.6%)
+### Why owner tasks save the most (65.4%)
 
-Owner tasks have the highest implementation token counts (up to 577K input tokens for inventory analysis). In the bicameral model, these tokens go through Flash at $0.15/M instead of Opus at $15/M. The more implementation tokens a task has, the greater the savings.
+Owner tasks have the highest implementation token counts (up to 577K input tokens for inventory analysis). In the bicameral model, these tokens go through Flash at $0.15/M instead of Opus at $5/M. The more implementation tokens a task has, the greater the savings.
 
-### Why employee tasks still save 43.3%
+### Why employee tasks still save 42.5%
 
-Even though employee tasks are simple, they still have plan and review phases that must use Opus. The implementation phase is small (10K-25K tokens), so the Flash savings are proportionally smaller. But at 50 tasks/day, the absolute savings add up: **$25.81/day just on employee transactions**.
+Even though employee tasks are simple, they still have plan and review phases that must use Opus. The implementation phase is small (10K-25K tokens), so the Flash savings are proportionally smaller. But at 50 tasks/day, the absolute savings add up: **$8.44/day just on employee transactions**.
 
 ---
 
@@ -148,31 +161,96 @@ Even though employee tasks are simple, they still have plan and review phases th
 
 | Period | Bicameral | Monolithic | Savings |
 |--------|-----------|------------|---------|
-| Daily | $74.90 | $155.21 | $80.31 (51.7%) |
-| Monthly (30 days) | $2,246.89 | $4,656.19 | $2,409.30 |
-| Annual (365 days) | $27,337.85 | $56,651.65 | $29,313.80 |
+| Daily | $25.46 | $51.74 | $26.27 (50.8%) |
+| Monthly (30 days) | $763.87 | $1,552.11 | $788.25 |
+| Annual (365 days) | $9,293.03 | $18,884.04 | $9,591.01 |
 
 ---
 
-## Why These Costs Seem High
+## Multi-Model Comparison
 
-If $75/day seems expensive for a POS system, consider:
+The benchmark supports swapping the RH Planner model. Here is the daily cost for each model with no optimizations applied:
 
-1. **These are LLM API costs, not traditional software costs.** A conventional POS system has near-zero marginal cost per transaction. An AI-powered POS that uses a reasoning model for every interaction is fundamentally more expensive.
+| RH Model | Daily Bicameral | vs Monolithic Opus | Savings |
+|----------|-----------------|--------------------|---------| 
+| Claude 4.6 Opus | $25.46 | $51.74 | 50.8% |
+| GPT-5 | $7.30 | $51.74 | 85.9% |
+| Gemini 2.5 Pro | $7.30 | $51.74 | 85.9% |
+| o3 | $10.43 | $51.74 | 79.8% |
+| DeepSeek R1 | $3.41 | $51.74 | 93.4% |
+| Claude Haiku 4.5 | $5.69 | $51.74 | 89.0% |
 
-2. **Opus output tokens cost $75 per million.** Even a brief 1,000-token plan output costs $0.075. Multiply by 61 tasks and the plan+review phases alone cost ~$74/day.
+GPT-5 and Gemini 2.5 Pro offer the best price-to-capability ratio for the RH Planner role at identical pricing ($1.25/$10.00 per M tokens). DeepSeek R1 is the cheapest option at $3.41/day but may sacrifice some reasoning quality on complex owner tasks.
 
-3. **Context windows are large.** Modern LLM agents send 20K-160K input tokens per call (system prompt, conversation history, tool schemas, database context). This is realistic for production agent workloads.
+---
 
-4. **The comparison is what matters.** The bicameral architecture doesn't eliminate LLM costs -- it cuts them in half by routing the bulk work through a model that is 100x cheaper. The monolithic alternative costs $155/day for the same functionality.
+## Optimization Strategies
 
-5. **Scaling strategies exist.** In production, you would:
-   - Cache common employee task plans (order placement doesn't need fresh Opus reasoning every time)
-   - Use prompt compression to reduce input token counts
-   - Batch similar tasks to amortize plan/review costs
-   - Skip the review phase for low-risk employee tasks
+Four optimization strategies can be applied independently or together:
 
-   These optimizations could reduce the bicameral cost by another 40-60%.
+### 1. Plan Caching (`--cache-plans`)
+
+Reuses plans for repeated task types. Employee tasks have an 80% cache hit rate (order placement is repetitive), managers 30%, owners 0% (each task is unique).
+
+| With Opus RH | Daily Cost | Reduction |
+|--------------|-----------|-----------|
+| No optimization | $25.46 | -- |
+| + Plan caching | $21.18 | 16.8% |
+
+### 2. Prompt Compression (`--compress-prompts`)
+
+Reduces input token counts by 60% through context summarization and RAG instead of full history.
+
+| With Opus RH | Daily Cost | Reduction |
+|--------------|-----------|-----------|
+| No optimization | $25.46 | -- |
+| + Compression | $11.85 | 53.5% |
+
+### 3. Batch Amortization (`--batch-similar`)
+
+Groups identical task types and amortizes one plan across the batch. 20 "Place order" tasks share 1 plan.
+
+| With Opus RH | Daily Cost | Reduction |
+|--------------|-----------|-----------|
+| No optimization | $25.46 | -- |
+| + Batching | $17.60 | 30.9% |
+
+### 4. Skip Low-Risk Review (`--skip-low-risk-review`)
+
+Employee tasks skip the Opus review phase entirely. Manager and owner tasks still get reviewed.
+
+| With Opus RH | Daily Cost | Reduction |
+|--------------|-----------|-----------|
+| No optimization | $25.46 | -- |
+| + Skip review | $19.78 | 22.3% |
+
+### All Optimizations Combined
+
+| With Opus RH | Daily Cost | Reduction vs Baseline | vs Monolithic |
+|--------------|-----------|----------------------|---------------|
+| All optimizations | $5.32 | 79.1% | 89.7% |
+
+With all four optimizations and Opus as the RH Planner, daily cost drops from $25.46 to $5.32 -- a 79% reduction from the unoptimized bicameral cost and 90% savings vs monolithic.
+
+---
+
+## Full Comparison Matrix
+
+Daily bicameral cost by RH model and optimization strategy:
+
+| Strategy | Opus | GPT-5 | Gem Pro | o3 | DeepSeek | Haiku |
+|----------|------|-------|---------|-----|----------|-------|
+| No optimization | $25.46 | $7.30 | $7.30 | $10.43 | $3.41 | $5.69 |
+| + Cache | $21.18 | $6.11 | $6.11 | $8.77 | $2.94 | $4.82 |
+| + Compress | $11.85 | $3.69 | $3.69 | $4.82 | $1.66 | $2.74 |
+| + Batch | $17.60 | $5.16 | $5.16 | $7.38 | $2.57 | $4.12 |
+| + Skip review | $19.78 | $5.81 | $5.81 | $8.19 | $2.79 | $4.55 |
+| All optimizations | $5.32 | $1.79 | $1.79 | $2.34 | $0.97 | $1.43 |
+| **Monolithic Opus** | **$51.74** | -- | -- | -- | -- | -- |
+
+**Best combination:** DeepSeek R1 with all optimizations = **$0.97/day** (98.1% savings vs monolithic Opus).
+
+**Recommended production setup:** GPT-5 or Gemini 2.5 Pro with all optimizations = **$1.79/day** -- balances strong reasoning capability with 96.5% cost savings vs monolithic Opus.
 
 ---
 
@@ -196,13 +274,29 @@ GKE Autopilot's pay-per-pod model means you only pay for the seconds each LH exe
 ## How to Run
 
 ```bash
-# Single day simulation
+# Single day simulation (default: Opus RH, no optimizations)
 python scripts/pos_benchmark.py
 
 # 30-day simulation with JSON report
 python scripts/pos_benchmark.py --days 30 --output-dir benchmark-results/
 
-# The JSON report contains per-task token counts for independent verification
+# Use a different RH planner model
+python scripts/pos_benchmark.py --rh-model gemini-2.5-pro
+
+# Enable individual optimizations
+python scripts/pos_benchmark.py --cache-plans
+python scripts/pos_benchmark.py --compress-prompts
+python scripts/pos_benchmark.py --batch-similar
+python scripts/pos_benchmark.py --skip-low-risk-review
+
+# Enable all optimizations
+python scripts/pos_benchmark.py --all-optimizations
+
+# Full multi-model x optimization comparison matrix
+python scripts/pos_benchmark.py --matrix --output-dir benchmark-results/
+
+# Combine: different model + optimizations + multi-day
+python scripts/pos_benchmark.py --rh-model deepseek-r1 --all-optimizations --days 30
 ```
 
 ## Methodology Notes
@@ -211,4 +305,7 @@ python scripts/pos_benchmark.py --days 30 --output-dir benchmark-results/
 - Random seed is fixed (42) for reproducibility
 - Infrastructure costs use published GKE Autopilot pricing for `us-central1`
 - LLM pricing uses published API rates as of March 2026
-- No caching, batching, or prompt optimization is applied -- these are worst-case costs
+- Monolithic baseline always uses Claude 4.6 Opus ($5/$25) for fair comparison
+- Cache hit rates: 80% employee, 30% manager, 0% owner
+- Prompt compression: 60% input token reduction across all phases
+- Batch amortization: plan cost divided by daily frequency of each task type

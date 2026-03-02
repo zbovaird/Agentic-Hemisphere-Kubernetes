@@ -1,0 +1,27 @@
+{
+  "intent_id": "benchmark-optimize-007",
+  "architectural_constraint": "Update all LLM pricing to verified March 2026 rates. Add 6 alternative RH planner models with real API pricing. Implement 4 optimization strategies as CLI flags. Produce multi-model x optimization comparison matrix. Monolithic baseline always uses Opus $5/$25 for fair comparison.",
+  "target_files": [
+    "scripts/pos_benchmark.py",
+    "scripts/benchmark.py",
+    "docker/rh-planner/app/cost/tracker.py",
+    "docs/pos-benchmark-analysis.md",
+    "README.md"
+  ],
+  "acceptance_criteria": [
+    "Opus pricing updated from $15/$75 to $5/$25 in all 3 source files",
+    "6 alternative RH models added with verified current pricing",
+    "--rh-model flag selects planner model",
+    "4 optimization flags (--cache-plans, --compress-prompts, --batch-similar, --skip-low-risk-review) modify simulation",
+    "--all-optimizations enables all four",
+    "--matrix produces full model x optimization comparison table",
+    "Analysis doc updated with corrected numbers and multi-model comparison",
+    "README cost table updated with corrected numbers",
+    "All benchmarks run successfully with new pricing"
+  ],
+  "implementation_proof": {
+    "test_log": "pos_benchmark.py: 61 tasks, $25.46 bicameral vs $51.74 monolithic (50.8% savings). Matrix: 6 models x 6 optimization combos. Best: DeepSeek R1 + all opts = $0.97/day (98.1% savings). benchmark.py: 30 tasks, $49.10 bicameral vs $128.45 monolithic (61.8% savings).",
+    "diff_summary": "3 files pricing fix, 1 file major rewrite (pos_benchmark.py), 1 doc rewrite, 1 README update, 3 new Callosum files",
+    "lint_status": "pass"
+  }
+}

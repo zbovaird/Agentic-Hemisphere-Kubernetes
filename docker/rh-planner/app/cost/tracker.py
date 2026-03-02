@@ -33,7 +33,7 @@ class ModelPricing:
         )
 
 
-OPUS_PRICING = ModelPricing(name="claude-4.6-opus", input_per_million=15.00, output_per_million=75.00)
+OPUS_PRICING = ModelPricing(name="claude-4.6-opus", input_per_million=5.00, output_per_million=25.00)
 FLASH_PRICING = ModelPricing(name="gemini-2.5-flash", input_per_million=0.15, output_per_million=0.60)
 
 

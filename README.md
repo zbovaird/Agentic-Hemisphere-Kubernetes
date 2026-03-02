@@ -55,21 +55,33 @@ Communication between hemispheres follows the **2% Signaling Protocol** -- only 
 
 ## Cost Benchmark
 
-The bicameral architecture saves ~50% on LLM costs compared to a monolithic Opus-only approach by routing implementation work through Gemini 2.5 Flash (100x cheaper tokens) while reserving Opus for planning and review.
+The bicameral architecture saves ~51% on LLM costs compared to a monolithic Opus-only approach by routing implementation work through Gemini 2.5 Flash (33-42x cheaper tokens) while reserving the RH model for planning and review.
 
-A restaurant POS scenario benchmark is included:
+A restaurant POS scenario benchmark is included with support for multiple RH planner models and optimization strategies:
 
 ```bash
-python scripts/pos_benchmark.py --days 30 --output-dir benchmark-results/
+python scripts/pos_benchmark.py                          # Default: Opus RH, no optimizations
+python scripts/pos_benchmark.py --rh-model gemini-2.5-pro --all-optimizations
+python scripts/pos_benchmark.py --matrix                  # Full model x optimization comparison
 ```
+
+**Default (Opus RH, no optimizations):**
 
 | Metric | Bicameral | Monolithic | Savings |
 |--------|-----------|------------|---------|
-| Daily cost (61 tasks) | $74.90 | $155.21 | 51.7% |
-| Monthly (30 days) | $2,247 | $4,656 | $2,409 |
-| Cost per employee txn | $0.68 | $1.19 | 43.3% |
+| Daily cost (61 tasks) | $25.46 | $51.74 | 50.8% |
+| Monthly (30 days) | $764 | $1,552 | $788 |
+| Cost per employee txn | $0.23 | $0.40 | 42.5% |
 
-See [docs/pos-benchmark-analysis.md](docs/pos-benchmark-analysis.md) for the full breakdown including per-task token counts, infrastructure costs, and methodology.
+**With alternative models and optimizations (daily cost):**
+
+| RH Model | No Opt | All Optimizations | vs Monolithic |
+|----------|--------|-------------------|---------------|
+| Claude 4.6 Opus | $25.46 | $5.32 | 89.7% savings |
+| GPT-5 / Gemini Pro | $7.30 | $1.79 | 96.5% savings |
+| DeepSeek R1 | $3.41 | $0.97 | 98.1% savings |
+
+See [docs/pos-benchmark-analysis.md](docs/pos-benchmark-analysis.md) for the full breakdown including per-task token counts, multi-model comparison matrix, optimization strategies, and methodology.
 
 A built-in cost tracking module (`docker/rh-planner/app/cost/tracker.py`) records token usage, latency, and GKE pod-seconds per task in production, with structured logging for aggregation.
 

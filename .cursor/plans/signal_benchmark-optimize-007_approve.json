@@ -1,0 +1,9 @@
+{
+  "signal": "APPROVE",
+  "intent_id": "benchmark-optimize-007",
+  "follow_up": [
+    "Run live benchmarks with deployed Vertex AI endpoint to validate simulation accuracy",
+    "A/B test DeepSeek R1 vs GPT-5 as RH Planner on real owner-tier tasks for quality comparison",
+    "Implement prompt caching at the API level (Anthropic/Google native caching) for additional savings"
+  ]
+}
