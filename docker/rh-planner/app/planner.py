@@ -7,6 +7,7 @@ The logic is structured to be testable without a live Vertex AI endpoint.
 
 from __future__ import annotations
 
+import os
 import time
 
 import structlog
@@ -24,14 +25,15 @@ from .models import (
 
 logger = structlog.get_logger()
 
-MODEL_NAME = "claude-4.6-opus"
+DEFAULT_MODEL = "claude-4.6-opus"
 
 
 class Planner:
     """Right Hemisphere planner that generates architectural plans and reviews diffs."""
 
-    def __init__(self, vertex_endpoint: str | None = None) -> None:
+    def __init__(self, vertex_endpoint: str | None = None, model_name: str | None = None) -> None:
         self.vertex_endpoint = vertex_endpoint
+        self.model_name = model_name or os.environ.get("RH_MODEL", DEFAULT_MODEL)
         self._plan_count = 0
 
     async def create_plan(self, request: PlanRequest) -> PlanResponse:
@@ -44,7 +46,7 @@ class Planner:
             intent_id=request.intent_id,
             description=request.description,
             hemisphere="right",
-            model=MODEL_NAME,
+            model=self.model_name,
             phase="plan",
         )
 
@@ -63,7 +65,7 @@ class Planner:
             "plan_completed",
             intent_id=request.intent_id,
             hemisphere="right",
-            model=MODEL_NAME,
+            model=self.model_name,
             phase="plan",
             input_tokens=input_tokens,
             output_tokens=output_tokens,
@@ -85,7 +87,7 @@ class Planner:
             intent_id=request.intent_id,
             lint_status=request.implementation_proof.lint_status,
             hemisphere="right",
-            model=MODEL_NAME,
+            model=self.model_name,
             phase="review",
         )
 
@@ -101,7 +103,7 @@ class Planner:
                 intent_id=request.intent_id,
                 issues=issues,
                 hemisphere="right",
-                model=MODEL_NAME,
+                model=self.model_name,
                 phase="review",
                 input_tokens=input_tokens,
                 output_tokens=output_tokens,
@@ -125,7 +127,7 @@ class Planner:
             "review_approved",
             intent_id=request.intent_id,
             hemisphere="right",
-            model=MODEL_NAME,
+            model=self.model_name,
             phase="review",
             input_tokens=input_tokens,
             output_tokens=output_tokens,

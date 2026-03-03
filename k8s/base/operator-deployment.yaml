@@ -25,6 +25,8 @@ spec:
           env:
             - name: LH_EXECUTOR_IMAGE
               value: "lh-executor:latest"
+            - name: LH_MODEL
+              value: "LH_MODEL_PLACEHOLDER"
             - name: EMPLOYEE_NAMESPACE
               value: "employee"
           resources:

@@ -28,6 +28,8 @@ spec:
           env:
             - name: VERTEX_ENDPOINT
               value: ""
+            - name: RH_MODEL
+              value: "RH_MODEL_PLACEHOLDER"
           resources:
             requests:
               cpu: "250m"

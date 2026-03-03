@@ -31,6 +31,7 @@ app = FastAPI(
 
 planner = Planner(
     vertex_endpoint=os.environ.get("VERTEX_ENDPOINT"),
+    model_name=os.environ.get("RH_MODEL"),
 )
 
 

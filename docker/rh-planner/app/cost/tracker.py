@@ -33,8 +33,25 @@ class ModelPricing:
         )
 
 
-OPUS_PRICING = ModelPricing(name="claude-4.6-opus", input_per_million=5.00, output_per_million=25.00)
-FLASH_PRICING = ModelPricing(name="gemini-2.5-flash", input_per_million=0.15, output_per_million=0.60)
+MODEL_PRICING_CATALOG: dict[str, ModelPricing] = {
+    "claude-4.6-opus": ModelPricing(name="claude-4.6-opus", input_per_million=5.00, output_per_million=25.00),
+    "gemini-2.5-flash": ModelPricing(name="gemini-2.5-flash", input_per_million=0.15, output_per_million=0.60),
+    "gemini-2.5-pro": ModelPricing(name="gemini-2.5-pro", input_per_million=1.25, output_per_million=10.00),
+    "gpt-5": ModelPricing(name="gpt-5", input_per_million=1.25, output_per_million=10.00),
+    "gpt-4.1-mini": ModelPricing(name="gpt-4.1-mini", input_per_million=0.40, output_per_million=1.60),
+    "o3": ModelPricing(name="o3", input_per_million=2.00, output_per_million=8.00),
+    "deepseek-r1": ModelPricing(name="deepseek-r1", input_per_million=0.55, output_per_million=2.19),
+    "deepseek-v3": ModelPricing(name="deepseek-v3", input_per_million=0.27, output_per_million=1.10),
+    "claude-haiku-4.5": ModelPricing(name="claude-haiku-4.5", input_per_million=1.00, output_per_million=5.00),
+}
+
+OPUS_PRICING = MODEL_PRICING_CATALOG["claude-4.6-opus"]
+FLASH_PRICING = MODEL_PRICING_CATALOG["gemini-2.5-flash"]
+
+
+def get_model_pricing(model_name: str) -> ModelPricing:
+    """Look up pricing for a model by name. Falls back to Flash pricing for unknown models."""
+    return MODEL_PRICING_CATALOG.get(model_name, FLASH_PRICING)
 
 
 @dataclass
@@ -70,7 +87,7 @@ class TaskCostRecord:
     def bicameral_cost(self, opus: ModelPricing = OPUS_PRICING, flash: ModelPricing = FLASH_PRICING) -> float:
         total = 0.0
         for phase in self.phases:
-            pricing = opus if "opus" in phase.model.lower() else flash
+            pricing = get_model_pricing(phase.model)
             total += pricing.cost(phase.input_tokens, phase.output_tokens)
         total += self._infra_cost()
         return total

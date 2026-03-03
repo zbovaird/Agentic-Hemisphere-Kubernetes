@@ -26,6 +26,7 @@ class TestProjectCompleteness:
         "pyproject.toml",
         "scripts/setup.sh",
         "scripts/deploy.sh",
+        "scripts/configure.sh",
         "terraform/main.tf",
         "terraform/variables.tf",
         "terraform/outputs.tf",
@@ -58,7 +59,7 @@ class TestProjectCompleteness:
 class TestScriptExecutability:
     """Verify deployment scripts are executable."""
 
-    SCRIPTS = ["scripts/setup.sh", "scripts/deploy.sh"]
+    SCRIPTS = ["scripts/setup.sh", "scripts/deploy.sh", "scripts/configure.sh"]
 
     @pytest.mark.parametrize("script", SCRIPTS)
     def test_script_is_executable(self, script: str) -> None:

@@ -46,6 +46,7 @@ Thumbs.db
 .env
 .env.*
 !.env.example
+.hemisphere.env
 credentials.json
 service-account-key.json
 

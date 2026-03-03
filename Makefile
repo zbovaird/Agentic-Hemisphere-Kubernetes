@@ -1,4 +1,6 @@
-.PHONY: setup lint test build deploy teardown clean help
+.PHONY: setup lint test build push deploy teardown clean help preflight configure \
+       lint-fix test-all test-security test-benchmarks \
+       infra-init infra-plan infra-apply validate-terraform
 
 SHELL := /bin/bash
 PROJECT_ROOT := $(shell pwd)
@@ -16,13 +18,25 @@ help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-20s\033[0m %s\n", $$1, $$2}'
 
+configure: ## Interactive model selection with pricing estimates
+	scripts/configure.sh
+
+preflight: ## Check that all required tools are installed
+	@echo "Checking prerequisites..."
+	@command -v gcloud  >/dev/null 2>&1 || { echo "ERROR: gcloud not found  -> https://cloud.google.com/sdk/docs/install"; exit 1; }
+	@command -v terraform >/dev/null 2>&1 || { echo "ERROR: terraform not found -> https://developer.hashicorp.com/terraform/install"; exit 1; }
+	@command -v docker  >/dev/null 2>&1 || { echo "ERROR: docker not found  -> https://docs.docker.com/get-docker/"; exit 1; }
+	@command -v kubectl >/dev/null 2>&1 || { echo "ERROR: kubectl not found -> gcloud components install kubectl"; exit 1; }
+	@docker info >/dev/null 2>&1 || { echo "ERROR: Docker daemon is not running. Start Docker Desktop."; exit 1; }
+	@echo "All prerequisites found."
+
 setup: ## Create venv and install all dependencies
 	python3 -m venv $(VENV)
 	$(PIP) install --upgrade pip
 	$(PIP) install -e ".[dev]"
 	@echo "Activate with: source .venv/bin/activate"
 
-lint: ## Run ruff linter and mypy type checker
+lint: ## Run ruff linter and formatter check
 	$(RUFF) check .
 	$(RUFF) format --check .
 
@@ -42,12 +56,13 @@ test-security: ## Run security-focused tests
 test-benchmarks: ## Run benchmark tests
 	$(PYTEST) tests/benchmarks/ -v -m benchmark
 
-build: ## Build Docker images
+build: preflight ## Build Docker images
 	docker build -t $(REGISTRY)/rh-planner:latest docker/rh-planner/
 	docker build -t $(REGISTRY)/lh-executor:latest docker/lh-executor/
 	docker build -t $(REGISTRY)/operator:latest operator/
 
 push: ## Push Docker images to registry
+	gcloud auth configure-docker --quiet
 	docker push $(REGISTRY)/rh-planner:latest
 	docker push $(REGISTRY)/lh-executor:latest
 	docker push $(REGISTRY)/operator:latest

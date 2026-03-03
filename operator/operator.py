@@ -21,6 +21,7 @@ from kubernetes import config as k8s_config
 logger = structlog.get_logger()
 
 LH_EXECUTOR_IMAGE = os.environ.get("LH_EXECUTOR_IMAGE", "lh-executor:latest")
+LH_MODEL = os.environ.get("LH_MODEL", "gemini-2.5-flash")
 EMPLOYEE_NAMESPACE = os.environ.get("EMPLOYEE_NAMESPACE", "employee")
 POD_TEMPLATE_PATH = os.environ.get(
     "POD_TEMPLATE_PATH",
@@ -47,7 +48,7 @@ def _build_pod_manifest(
         "intent_id": spec.get("intent_id", "unknown"),
         "task_type": spec.get("task_type", "execute"),
         "payload": spec.get("payload", {}),
-        "target_model": spec.get("target_model", "gemini-2.5-flash"),
+        "target_model": spec.get("target_model", LH_MODEL),
     })
 
     pod_name = f"lh-{task_name[:50]}-{datetime.now(timezone.utc).strftime('%H%M%S')}"
