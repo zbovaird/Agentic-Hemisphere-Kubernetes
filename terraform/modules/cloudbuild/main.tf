@@ -19,6 +19,7 @@ resource "google_project_iam_member" "cloudbuild_logs" {
 }
 
 resource "google_cloudbuild_trigger" "build_images" {
+  count       = var.github_owner != "" ? 1 : 0
   project     = var.project_id
   name        = "hemisphere-build-images"
   description = "Build and push container images on push to main"

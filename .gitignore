@@ -25,6 +25,7 @@ terraform/**/.terraform/
 *.tfvars
 !terraform.tfvars.example
 .terraform.lock.hcl
+tfplan
 crash.log
 
 # Docker

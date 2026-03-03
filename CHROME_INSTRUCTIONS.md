@@ -121,7 +121,13 @@ cd Agentic-Hemisphere-Kubernetes
 make deploy
 ```
 
-This provisions the GKE Autopilot cluster, IAM bindings, Vertex AI endpoint, monitoring dashboard, and deploys all Kubernetes resources.
+The deploy script will walk you through:
+
+1. **Model selection** -- choose your Master (RH) and Emissary (LH) models
+2. **GitHub linking (optional)** -- connect your GitHub repo so images auto-rebuild on push to `main`. If you choose yes, you'll need to authorize Cloud Build in the GCP Console at [Cloud Build Triggers](https://console.cloud.google.com/cloud-build/triggers/connect). You can skip this and images will only build when you run `make deploy` or `make cloud-build`.
+3. **Infrastructure provisioning** -- Terraform creates the GKE cluster, IAM, Artifact Registry, Vertex AI endpoint, and monitoring dashboard
+4. **Image builds** -- Cloud Build builds and pushes container images (no local Docker needed)
+5. **Kubernetes deployment** -- applies CRDs, RBAC, and workloads
 
 To tear everything down and stop all charges:
 

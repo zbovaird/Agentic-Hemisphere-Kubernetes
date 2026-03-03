@@ -86,6 +86,62 @@ echo "Emissary model: $LH_MODEL"
 echo ""
 
 # ---------------------------------------------------------------------------
+# Step 1b: GitHub linking (optional)
+# ---------------------------------------------------------------------------
+TFVARS_FILE="${PROJECT_ROOT}/terraform/terraform.tfvars"
+GITHUB_OWNER=""
+if [ -f "$TFVARS_FILE" ]; then
+    GITHUB_OWNER=$(grep -s 'github_owner' "$TFVARS_FILE" | cut -d'"' -f2 || true)
+fi
+
+if [ -z "$GITHUB_OWNER" ]; then
+    echo "----------------------------------------------"
+    echo "  GitHub Integration (optional)"
+    echo "----------------------------------------------"
+    echo ""
+    echo "  Link your GitHub repo to auto-rebuild container"
+    echo "  images in Cloud Build whenever you push to main."
+    echo ""
+    echo "  If you skip this, images are only built when you"
+    echo "  run 'make deploy' or 'make cloud-build' manually."
+    echo ""
+    read -rp "  Link a GitHub repo? [y/N]: " gh_choice
+    gh_choice=${gh_choice:-n}
+
+    if [[ "$gh_choice" =~ ^[Yy]$ ]]; then
+        read -rp "  GitHub username or org: " gh_owner
+        read -rp "  Repository name (default: Agentic-Hemisphere-Kubernetes): " gh_repo
+        gh_repo=${gh_repo:-Agentic-Hemisphere-Kubernetes}
+
+        if [ -n "$gh_owner" ]; then
+            echo "" >> "$TFVARS_FILE"
+            echo "# GitHub integration (auto-rebuild images on push to main)" >> "$TFVARS_FILE"
+            echo "github_owner = \"${gh_owner}\"" >> "$TFVARS_FILE"
+            echo "github_repo  = \"${gh_repo}\"" >> "$TFVARS_FILE"
+
+            echo ""
+            echo "  Saved: github_owner = \"${gh_owner}\""
+            echo "  Saved: github_repo  = \"${gh_repo}\""
+            echo ""
+            echo "  NOTE: You must connect your GitHub repo to Cloud Build"
+            echo "  in the GCP Console (one-time setup):"
+            echo ""
+            echo "    https://console.cloud.google.com/cloud-build/triggers/connect"
+            echo ""
+            echo "  Select 'GitHub (Cloud Build GitHub App)', authorize access,"
+            echo "  and choose the ${gh_repo} repository."
+            echo ""
+            read -rp "  Press Enter when ready to continue..."
+        else
+            echo "  Skipped -- no GitHub owner provided."
+        fi
+    else
+        echo "  Skipped -- images will be built manually via Cloud Build."
+    fi
+    echo ""
+fi
+
+# ---------------------------------------------------------------------------
 # Step 2: Enable required GCP APIs
 # ---------------------------------------------------------------------------
 echo "--- Step 2/6: Enabling GCP APIs ---"

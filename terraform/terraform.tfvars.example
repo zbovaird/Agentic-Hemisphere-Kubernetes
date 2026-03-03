@@ -15,6 +15,9 @@ employee_cpu_quota    = "2"
 employee_memory_quota = "2Gi"
 employee_pod_quota    = "10"
 
-# Cloud Build (set github_owner to enable automatic image builds on push)
-github_owner = ""
-github_repo  = "Agentic-Hemisphere-Kubernetes"
+# GitHub integration (optional -- auto-rebuild images on push to main)
+# Leave github_owner empty to skip. The deploy script will prompt you.
+# If you set this, you must also connect your repo in the GCP Console:
+#   https://console.cloud.google.com/cloud-build/triggers/connect
+# github_owner = "your-github-username"
+# github_repo  = "Agentic-Hemisphere-Kubernetes"

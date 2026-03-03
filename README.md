@@ -138,14 +138,13 @@ make deploy
 
 Container images for all three components (RH Planner, LH Executor, Operator) are built in the cloud via **Google Cloud Build** -- no local Docker installation required. Images are built and pushed automatically as part of `make deploy`.
 
-The deployment script (`scripts/deploy.sh`) handles:
+The deployment script (`scripts/deploy.sh`) walks you through:
 
-1. Terraform provisioning (GKE cluster, IAM, Artifact Registry, Cloud Build, Vertex AI, monitoring)
-2. kubectl credential configuration
-3. Cloud Build: builds and pushes images to Artifact Registry
-4. Kubernetes manifest application (CRDs, RBAC, deployments)
-
-On merge to `main`, the GitHub Actions CI pipeline also triggers Cloud Build to keep images up to date.
+1. **Model selection** -- choose your Master (RH) and Emissary (LH) models interactively
+2. **GitHub linking (optional)** -- connect your GitHub repo so images auto-rebuild on push to `main`. If you skip this, images are only built when you run `make deploy` or `make cloud-build`
+3. **Terraform provisioning** -- GKE cluster, IAM, Artifact Registry, Cloud Build, Vertex AI, monitoring
+4. **Cloud Build** -- builds and pushes container images to Artifact Registry (no local Docker needed)
+5. **Kubernetes deployment** -- CRDs, RBAC, and workloads applied to the cluster
 
 You do not need to build or push images manually. If you want to trigger a build separately:
 
