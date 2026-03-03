@@ -5,16 +5,16 @@ resources:
   - ../../base
 
 # Registry is injected by deploy script from terraform.tfvars project_id
-# Placeholder replaced at apply time: GCR_REGISTRY_PLACEHOLDER -> gcr.io/PROJECT_ID
+# Placeholder replaced at apply time: REGISTRY_PLACEHOLDER -> REGION-docker.pkg.dev/PROJECT_ID/hemisphere-repo
 images:
   - name: rh-planner:latest
-    newName: gcr.io/GCR_REGISTRY_PLACEHOLDER/rh-planner
+    newName: REGISTRY_PLACEHOLDER/rh-planner
     newTag: latest
   - name: operator:latest
-    newName: gcr.io/GCR_REGISTRY_PLACEHOLDER/operator
+    newName: REGISTRY_PLACEHOLDER/operator
     newTag: latest
   - name: lh-executor:latest
-    newName: gcr.io/GCR_REGISTRY_PLACEHOLDER/lh-executor
+    newName: REGISTRY_PLACEHOLDER/lh-executor
     newTag: latest
 
 patches:
@@ -46,7 +46,7 @@ patches:
         value: 1
       - op: replace
         path: /spec/template/spec/containers/0/env/0/value
-        value: "gcr.io/GCR_REGISTRY_PLACEHOLDER/lh-executor:latest"
+        value: "REGISTRY_PLACEHOLDER/lh-executor:latest"
       - op: replace
         path: /spec/template/spec/containers/0/resources/requests/cpu
         value: "100m"

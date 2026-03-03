@@ -51,6 +51,18 @@ variable "employee_pod_quota" {
   default     = "10"
 }
 
+variable "github_owner" {
+  description = "GitHub repository owner (user or org) for Cloud Build trigger"
+  type        = string
+  default     = ""
+}
+
+variable "github_repo" {
+  description = "GitHub repository name for Cloud Build trigger"
+  type        = string
+  default     = "Agentic-Hemisphere-Kubernetes"
+}
+
 variable "labels" {
   description = "Labels to apply to all resources"
   type        = map(string)

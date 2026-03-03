@@ -104,7 +104,7 @@ For first-time setup, see [CHROME_INSTRUCTIONS.md](CHROME_INSTRUCTIONS.md) for a
 
 - [Google Cloud SDK](https://cloud.google.com/sdk/docs/install) (`gcloud`)
 - [Terraform](https://developer.hashicorp.com/terraform/install) (>= 1.5)
-- [Docker](https://docs.docker.com/get-docker/)
+- [Docker](https://docs.docker.com/get-docker/) (optional -- only needed for local builds; Cloud Build is used by default)
 - [kubectl](https://kubernetes.io/docs/tasks/tools/) (or install via `gcloud components install kubectl`)
 - Python >= 3.11
 
@@ -134,20 +134,25 @@ cp terraform/terraform.tfvars.example terraform/terraform.tfvars
 make deploy
 ```
 
-## Docker Images
+## Container Images
 
-Container images for all three components (RH Planner, LH Executor, Operator) are built and pushed automatically as part of `make deploy`. The deployment script (`scripts/deploy.sh`) handles:
+Container images for all three components (RH Planner, LH Executor, Operator) are built in the cloud via **Google Cloud Build** -- no local Docker installation required. Images are built and pushed automatically as part of `make deploy`.
 
-1. Terraform provisioning (GKE cluster, IAM, Vertex AI, monitoring)
+The deployment script (`scripts/deploy.sh`) handles:
+
+1. Terraform provisioning (GKE cluster, IAM, Artifact Registry, Cloud Build, Vertex AI, monitoring)
 2. kubectl credential configuration
-3. Docker build and push to Google Container Registry
+3. Cloud Build: builds and pushes images to Artifact Registry
 4. Kubernetes manifest application (CRDs, RBAC, deployments)
 
-You do not need to build or push images manually. If you want to build images separately:
+On merge to `main`, the GitHub Actions CI pipeline also triggers Cloud Build to keep images up to date.
+
+You do not need to build or push images manually. If you want to trigger a build separately:
 
 ```bash
-make build   # Build all three images locally
-make push    # Push to GCR (requires gcloud auth configure-docker)
+make cloud-build   # Build and push via Cloud Build (no local Docker needed)
+make build         # Build locally (requires Docker)
+make push          # Push locally-built images to Artifact Registry
 ```
 
 ## Pipeline Integration

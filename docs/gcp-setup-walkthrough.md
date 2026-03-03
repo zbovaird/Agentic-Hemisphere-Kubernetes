@@ -83,7 +83,7 @@ What each API does:
 | `aiplatform.googleapis.com` | Vertex AI endpoints |
 | `iam.googleapis.com` | Service accounts and Workload Identity |
 | `compute.googleapis.com` | Compute Engine (required by GKE) |
-| `artifactregistry.googleapis.com` | Container image registry (alternative to gcr.io) |
+| `artifactregistry.googleapis.com` | Container image registry |
 | `monitoring.googleapis.com` | Cloud Monitoring dashboards |
 | `cloudresourcemanager.googleapis.com` | Project metadata |
 | `serviceusage.googleapis.com` | API management |

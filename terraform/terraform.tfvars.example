@@ -14,3 +14,7 @@ vertex_traffic_split = {}
 employee_cpu_quota    = "2"
 employee_memory_quota = "2Gi"
 employee_pod_quota    = "10"
+
+# Cloud Build (set github_owner to enable automatic image builds on push)
+github_owner = ""
+github_repo  = "Agentic-Hemisphere-Kubernetes"

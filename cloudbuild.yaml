@@ -1,0 +1,46 @@
+steps:
+  - id: build-rh-planner
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/rh-planner:${_TAG}
+      - -t
+      - ${_REGISTRY}/rh-planner:latest
+      - docker/rh-planner/
+
+  - id: build-lh-executor
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/lh-executor:${_TAG}
+      - -t
+      - ${_REGISTRY}/lh-executor:latest
+      - docker/lh-executor/
+
+  - id: build-operator
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/operator:${_TAG}
+      - -t
+      - ${_REGISTRY}/operator:latest
+      - operator/
+
+images:
+  - ${_REGISTRY}/rh-planner:${_TAG}
+  - ${_REGISTRY}/rh-planner:latest
+  - ${_REGISTRY}/lh-executor:${_TAG}
+  - ${_REGISTRY}/lh-executor:latest
+  - ${_REGISTRY}/operator:${_TAG}
+  - ${_REGISTRY}/operator:latest
+
+substitutions:
+  _REGISTRY: us-central1-docker.pkg.dev/${PROJECT_ID}/hemisphere-repo
+  _TAG: latest
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+  machineType: E2_HIGHCPU_8

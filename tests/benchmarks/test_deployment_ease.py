@@ -137,7 +137,9 @@ class TestDeploymentStepCount:
         6. make deploy
         """
         readme = (PROJECT_ROOT / "README.md").read_text()
-        quickstart_section = readme[readme.find("Quickstart"):readme.find("## Pipeline")]
+        quickstart_start = readme.find("## Quickstart")
+        quickstart_end = readme.find("\n## ", quickstart_start + 1)
+        quickstart_section = readme[quickstart_start:quickstart_end]
         command_lines = [
             line.strip()
             for line in quickstart_section.split("\n")

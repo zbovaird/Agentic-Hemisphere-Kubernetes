@@ -27,7 +27,7 @@ if [ -z "$GCP_PROJECT" ]; then
     fi
 fi
 
-REGISTRY="gcr.io/${GCP_PROJECT}"
+REGISTRY="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT}/hemisphere-repo"
 OVERLAY="${DEPLOY_OVERLAY:-dev}"
 
 echo "Project:  $GCP_PROJECT"
@@ -42,7 +42,7 @@ echo ""
 echo "--- Step 0/6: Preflight checks ---"
 
 MISSING=""
-for cmd in gcloud terraform docker kubectl bc; do
+for cmd in gcloud terraform kubectl bc; do
     if ! command -v "$cmd" &>/dev/null; then
         MISSING="$MISSING $cmd"
     fi
@@ -54,14 +54,8 @@ if [ -n "$MISSING" ]; then
     echo "Install the missing tools before running this script:"
     echo "  gcloud    -> https://cloud.google.com/sdk/docs/install"
     echo "  terraform -> https://developer.hashicorp.com/terraform/install"
-    echo "  docker    -> https://docs.docker.com/get-docker/"
     echo "  kubectl   -> gcloud components install kubectl"
     echo "  bc        -> brew install bc (macOS) or apt install bc (Linux)"
-    exit 1
-fi
-
-if ! docker info &>/dev/null 2>&1; then
-    echo "ERROR: Docker daemon is not running. Start Docker Desktop and try again."
     exit 1
 fi
 
@@ -101,7 +95,8 @@ gcloud services enable \
     aiplatform.googleapis.com \
     iam.googleapis.com \
     compute.googleapis.com \
-    containerregistry.googleapis.com \
+    artifactregistry.googleapis.com \
+    cloudbuild.googleapis.com \
     monitoring.googleapis.com \
     cloudresourcemanager.googleapis.com \
     serviceusage.googleapis.com \
@@ -130,28 +125,28 @@ echo ""
 echo "--- Step 4/6: Configuring kubectl ---"
 
 CLUSTER_NAME=$(cd terraform && terraform output -raw cluster_name)
+REGISTRY=$(cd terraform && terraform output -raw registry_url)
 gcloud container clusters get-credentials "$CLUSTER_NAME" \
     --region "$GCP_REGION" \
     --project "$GCP_PROJECT"
 
+echo "Registry: $REGISTRY"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 5: Build and push container images
+# Step 5: Build and push container images via Cloud Build
 # ---------------------------------------------------------------------------
-echo "--- Step 5/6: Building and pushing container images ---"
+echo "--- Step 5/6: Building container images (Cloud Build) ---"
 
-gcloud auth configure-docker --quiet
+gcloud services enable cloudbuild.googleapis.com --project="$GCP_PROJECT" --quiet
 
-docker build -t "${REGISTRY}/rh-planner:latest" docker/rh-planner/
-docker build -t "${REGISTRY}/lh-executor:latest" docker/lh-executor/
-docker build -t "${REGISTRY}/operator:latest" operator/
+gcloud builds submit . \
+    --project="$GCP_PROJECT" \
+    --config=cloudbuild.yaml \
+    --substitutions="_REGISTRY=${REGISTRY}" \
+    --quiet
 
-docker push "${REGISTRY}/rh-planner:latest"
-docker push "${REGISTRY}/lh-executor:latest"
-docker push "${REGISTRY}/operator:latest"
-
-echo "Images pushed to ${REGISTRY}."
+echo "Images built and pushed to ${REGISTRY} via Cloud Build."
 echo ""
 
 # ---------------------------------------------------------------------------
@@ -168,7 +163,8 @@ cp -r k8s "$TMP_K8S/"
 
 # Substitute all placeholders in the overlay
 OVERLAY_FILE="$TMP_K8S/k8s/overlays/${OVERLAY}/kustomization.yaml"
-sed -i.bak "s/GCR_REGISTRY_PLACEHOLDER/${GCP_PROJECT}/g" "$OVERLAY_FILE"
+ESCAPED_REGISTRY=$(echo "$REGISTRY" | sed 's/[\/&]/\\&/g')
+sed -i.bak "s/REGISTRY_PLACEHOLDER/${ESCAPED_REGISTRY}/g" "$OVERLAY_FILE"
 rm -f "${OVERLAY_FILE}.bak"
 
 # Substitute model placeholders in base manifests

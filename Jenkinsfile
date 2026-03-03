@@ -4,7 +4,7 @@ pipeline {
     environment {
         GCP_PROJECT    = credentials('gcp-project-id')
         GCP_REGION     = 'us-central1'
-        REGISTRY       = "gcr.io/${GCP_PROJECT}"
+        REGISTRY       = "${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT}/hemisphere-repo"
         PYTHON_VERSION = '3.11'
     }
 
@@ -57,36 +57,17 @@ pipeline {
             }
         }
 
-        stage('Build Images') {
-            parallel {
-                stage('RH Planner') {
-                    steps {
-                        sh "docker build -t ${REGISTRY}/rh-planner:${BUILD_NUMBER} docker/rh-planner/"
-                    }
-                }
-                stage('LH Executor') {
-                    steps {
-                        sh "docker build -t ${REGISTRY}/lh-executor:${BUILD_NUMBER} docker/lh-executor/"
-                    }
-                }
-                stage('Operator') {
-                    steps {
-                        sh "docker build -t ${REGISTRY}/operator:${BUILD_NUMBER} operator/"
-                    }
-                }
-            }
-        }
-
-        stage('Push Images') {
+        stage('Cloud Build') {
             when {
                 branch 'main'
             }
             steps {
                 sh '''
-                    gcloud auth configure-docker --quiet
-                    docker push ${REGISTRY}/rh-planner:${BUILD_NUMBER}
-                    docker push ${REGISTRY}/lh-executor:${BUILD_NUMBER}
-                    docker push ${REGISTRY}/operator:${BUILD_NUMBER}
+                    gcloud builds submit . \
+                        --project="${GCP_PROJECT}" \
+                        --config=cloudbuild.yaml \
+                        --substitutions="_REGISTRY=${REGISTRY}" \
+                        --quiet
                 '''
             }
         }

@@ -1,4 +1,4 @@
-.PHONY: setup lint test build push deploy teardown clean help preflight configure \
+.PHONY: setup lint test build push cloud-build deploy teardown clean help preflight configure \
        lint-fix test-all test-security test-benchmarks \
        infra-init infra-plan infra-apply validate-terraform
 
@@ -12,7 +12,7 @@ RUFF := $(VENV)/bin/ruff
 
 GCP_PROJECT ?= $(shell grep -s 'project_id' terraform/terraform.tfvars 2>/dev/null | cut -d'"' -f2)
 GCP_REGION ?= us-central1
-REGISTRY ?= gcr.io/$(GCP_PROJECT)
+REGISTRY ?= $(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT)/hemisphere-repo
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | \
@@ -25,9 +25,7 @@ preflight: ## Check that all required tools are installed
 	@echo "Checking prerequisites..."
 	@command -v gcloud  >/dev/null 2>&1 || { echo "ERROR: gcloud not found  -> https://cloud.google.com/sdk/docs/install"; exit 1; }
 	@command -v terraform >/dev/null 2>&1 || { echo "ERROR: terraform not found -> https://developer.hashicorp.com/terraform/install"; exit 1; }
-	@command -v docker  >/dev/null 2>&1 || { echo "ERROR: docker not found  -> https://docs.docker.com/get-docker/"; exit 1; }
 	@command -v kubectl >/dev/null 2>&1 || { echo "ERROR: kubectl not found -> gcloud components install kubectl"; exit 1; }
-	@docker info >/dev/null 2>&1 || { echo "ERROR: Docker daemon is not running. Start Docker Desktop."; exit 1; }
 	@echo "All prerequisites found."
 
 setup: ## Create venv and install all dependencies
@@ -56,13 +54,20 @@ test-security: ## Run security-focused tests
 test-benchmarks: ## Run benchmark tests
 	$(PYTEST) tests/benchmarks/ -v -m benchmark
 
-build: preflight ## Build Docker images
+cloud-build: preflight ## Build and push images via Cloud Build (no local Docker needed)
+	gcloud builds submit . \
+		--project=$(GCP_PROJECT) \
+		--config=cloudbuild.yaml \
+		--substitutions="_REGISTRY=$(REGISTRY)" \
+		--quiet
+
+build: ## Build Docker images locally (requires Docker)
 	docker build -t $(REGISTRY)/rh-planner:latest docker/rh-planner/
 	docker build -t $(REGISTRY)/lh-executor:latest docker/lh-executor/
 	docker build -t $(REGISTRY)/operator:latest operator/
 
-push: ## Push Docker images to registry
-	gcloud auth configure-docker --quiet
+push: ## Push locally-built images to Artifact Registry
+	gcloud auth configure-docker $(GCP_REGION)-docker.pkg.dev --quiet
 	docker push $(REGISTRY)/rh-planner:latest
 	docker push $(REGISTRY)/lh-executor:latest
 	docker push $(REGISTRY)/operator:latest

@@ -49,3 +49,13 @@ output "monitoring_dashboard_id" {
   description = "Cloud Monitoring dashboard ID"
   value       = module.monitoring.dashboard_id
 }
+
+output "registry_url" {
+  description = "Artifact Registry URL for container images"
+  value       = module.registry.registry_url
+}
+
+output "cloudbuild_trigger_id" {
+  description = "Cloud Build trigger ID for image builds"
+  value       = module.cloudbuild.trigger_id
+}

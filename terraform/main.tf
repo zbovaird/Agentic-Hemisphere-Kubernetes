@@ -55,6 +55,25 @@ module "namespaces" {
   depends_on = [module.gke]
 }
 
+module "registry" {
+  source = "./modules/registry"
+
+  project_id = var.project_id
+  region     = var.region
+  labels     = var.labels
+}
+
+module "cloudbuild" {
+  source = "./modules/cloudbuild"
+
+  project_id   = var.project_id
+  registry_url = module.registry.registry_url
+  github_owner = var.github_owner
+  github_repo  = var.github_repo
+
+  depends_on = [module.registry]
+}
+
 module "monitoring" {
   source = "./modules/monitoring"
 
