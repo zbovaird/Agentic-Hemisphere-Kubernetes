@@ -19,6 +19,16 @@ steps:
       - ${_REGISTRY}/lh-executor:latest
       - docker/lh-executor/
 
+  - id: build-rh-sidecar
+    name: gcr.io/cloud-builders/docker
+    args:
+      - build
+      - -t
+      - ${_REGISTRY}/rh-sidecar:${_TAG}
+      - -t
+      - ${_REGISTRY}/rh-sidecar:latest
+      - docker/rh-sidecar/
+
   - id: build-operator
     name: gcr.io/cloud-builders/docker
     args:
@@ -32,6 +42,8 @@ steps:
 images:
   - ${_REGISTRY}/rh-planner:${_TAG}
   - ${_REGISTRY}/rh-planner:latest
+  - ${_REGISTRY}/rh-sidecar:${_TAG}
+  - ${_REGISTRY}/rh-sidecar:latest
   - ${_REGISTRY}/lh-executor:${_TAG}
   - ${_REGISTRY}/lh-executor:latest
   - ${_REGISTRY}/operator:${_TAG}

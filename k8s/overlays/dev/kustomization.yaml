@@ -10,6 +10,9 @@ images:
   - name: rh-planner:latest
     newName: REGISTRY_PLACEHOLDER/rh-planner
     newTag: latest
+  - name: rh-sidecar:latest
+    newName: REGISTRY_PLACEHOLDER/rh-sidecar
+    newTag: latest
   - name: operator:latest
     newName: REGISTRY_PLACEHOLDER/operator
     newTag: latest
@@ -37,6 +40,9 @@ patches:
       - op: replace
         path: /spec/template/spec/containers/0/resources/limits/memory
         value: "512Mi"
+      - op: replace
+        path: /spec/template/spec/containers/1/env/0/value
+        value: "2"
   - target:
       kind: Deployment
       name: hemisphere-operator

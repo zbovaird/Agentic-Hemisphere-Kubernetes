@@ -86,16 +86,8 @@ class TestEndToEndLifecycle:
             "target_model": "gemini-2.5-flash",
         }
 
-        owner_ref = {
-            "apiVersion": "hemisphere.ai/v1",
-            "kind": "AgentTask",
-            "name": "integration-task-001",
-            "uid": "test-uid-001",
-            "blockOwnerDeletion": True,
-            "controller": True,
-        }
         pod_manifest = op_mod._build_pod_manifest(
-            "integration-task-001", "owner", task_spec_dict, owner_ref
+            "integration-task-001", "owner", task_spec_dict
         )
 
         assert pod_manifest["metadata"]["namespace"] == "employee"
@@ -165,9 +157,6 @@ class TestEndToEndLifecycle:
         manifest = op_mod._build_pod_manifest(
             "sec-test", "owner",
             {"intent_id": "sec-001", "task_type": "execute"},
-            {"apiVersion": "hemisphere.ai/v1", "kind": "AgentTask",
-             "name": "sec-test", "uid": "uid", "blockOwnerDeletion": True,
-             "controller": True},
         )
 
         container = manifest["spec"]["containers"][0]

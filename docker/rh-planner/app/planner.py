@@ -7,15 +7,16 @@ The logic is structured to be testable without a live Vertex AI endpoint.
 
 from __future__ import annotations
 
+import json
 import os
 import time
+from pathlib import Path
 
 import structlog
 
 from .models import (
     ApproveSignal,
     Handshake,
-    ImplementationProof,
     PlanRequest,
     PlanResponse,
     ReviewRequest,
@@ -26,6 +27,7 @@ from .models import (
 logger = structlog.get_logger()
 
 DEFAULT_MODEL = "claude-4.6-opus"
+HANDSHAKE_DIR = os.environ.get("HANDSHAKE_DIR", "/handshakes")
 
 
 class Planner:
@@ -72,11 +74,29 @@ class Planner:
             latency_ms=round(elapsed_ms, 2),
         )
 
+        self._write_handshake(handshake)
+
         return PlanResponse(
             intent_id=request.intent_id,
             handshake=handshake,
             reasoning=f"Generated plan #{self._plan_count} for intent {request.intent_id}",
         )
+
+    @staticmethod
+    def _write_handshake(handshake: Handshake) -> None:
+        """Write handshake JSON to the shared volume for the scaling sidecar."""
+        pending_dir = Path(HANDSHAKE_DIR) / "pending"
+        try:
+            pending_dir.mkdir(parents=True, exist_ok=True)
+            path = pending_dir / f"{handshake.intent_id}.json"
+            path.write_text(json.dumps(handshake.model_dump(), indent=2))
+            logger.info("handshake_written", path=str(path), intent_id=handshake.intent_id)
+        except OSError as e:
+            logger.warning(
+                "handshake_write_failed",
+                intent_id=handshake.intent_id,
+                error=str(e),
+            )
 
     async def review(self, request: ReviewRequest) -> ReviewResponse:
         """Review an Emissary's implementation proof and issue APPROVE or SUPPRESS."""

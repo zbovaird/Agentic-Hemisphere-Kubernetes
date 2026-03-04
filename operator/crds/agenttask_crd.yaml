@@ -37,7 +37,8 @@ spec:
                     - execute
                     - test
                     - lint
-                  description: "Type of task for the LH Executor"
+                    - standby
+                  description: "Type of task for the LH Executor (standby = warm pool pre-warming)"
                 payload:
                   type: object
                   x-kubernetes-preserve-unknown-fields: true
@@ -58,10 +59,11 @@ spec:
                   enum:
                     - Pending
                     - Running
+                    - Standby
                     - Completed
                     - Failed
                     - Escalated
-                  description: "Current lifecycle phase of the task"
+                  description: "Current lifecycle phase of the task (Standby = warm pool pod)"
                 pod_name:
                   type: string
                   description: "Name of the LH pod executing this task"

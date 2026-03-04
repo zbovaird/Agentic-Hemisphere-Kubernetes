@@ -22,23 +22,24 @@ from app.cost.tracker import (
 class TestModelPricing:
     def test_opus_pricing(self) -> None:
         cost = OPUS_PRICING.cost(input_tokens=1_000_000, output_tokens=0)
-        assert cost == pytest.approx(15.00, rel=0.01)
+        assert cost == pytest.approx(OPUS_PRICING.input_per_million, rel=0.01)
 
     def test_flash_pricing(self) -> None:
         cost = FLASH_PRICING.cost(input_tokens=1_000_000, output_tokens=0)
-        assert cost == pytest.approx(0.15, rel=0.01)
+        assert cost == pytest.approx(FLASH_PRICING.input_per_million, rel=0.01)
 
     def test_opus_output_pricing(self) -> None:
         cost = OPUS_PRICING.cost(input_tokens=0, output_tokens=1_000_000)
-        assert cost == pytest.approx(75.00, rel=0.01)
+        assert cost == pytest.approx(OPUS_PRICING.output_per_million, rel=0.01)
 
     def test_flash_output_pricing(self) -> None:
         cost = FLASH_PRICING.cost(input_tokens=0, output_tokens=1_000_000)
-        assert cost == pytest.approx(0.60, rel=0.01)
+        assert cost == pytest.approx(FLASH_PRICING.output_per_million, rel=0.01)
 
     def test_combined_cost(self) -> None:
         cost = OPUS_PRICING.cost(input_tokens=100_000, output_tokens=2_000)
-        expected = 100_000 * 15.00 / 1_000_000 + 2_000 * 75.00 / 1_000_000
+        expected = (100_000 * OPUS_PRICING.input_per_million / 1_000_000
+                    + 2_000 * OPUS_PRICING.output_per_million / 1_000_000)
         assert cost == pytest.approx(expected, rel=0.001)
 
 

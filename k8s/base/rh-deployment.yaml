@@ -30,6 +30,8 @@ spec:
               value: ""
             - name: RH_MODEL
               value: "RH_MODEL_PLACEHOLDER"
+            - name: HANDSHAKE_DIR
+              value: "/handshakes"
           resources:
             requests:
               cpu: "250m"
@@ -60,7 +62,61 @@ spec:
           volumeMounts:
             - name: tmp
               mountPath: /tmp
+            - name: handshakes
+              mountPath: /handshakes
+        - name: sidecar
+          image: rh-sidecar:latest
+          ports:
+            - containerPort: 8081
+              protocol: TCP
+          env:
+            - name: WARM_POOL_SIZE
+              value: "2"
+            - name: EMPLOYEE_NAMESPACE
+              value: "employee"
+            - name: TASK_NAMESPACE
+              value: "owner"
+            - name: HANDSHAKE_DIR
+              value: "/handshakes"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "128Mi"
+            limits:
+              cpu: "250m"
+              memory: "256Mi"
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+            capabilities:
+              drop:
+                - ALL
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 10
+            periodSeconds: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          volumeMounts:
+            - name: handshakes
+              mountPath: /handshakes
+            - name: tmp-sidecar
+              mountPath: /tmp
       volumes:
         - name: tmp
           emptyDir:
             sizeLimit: 100Mi
+        - name: tmp-sidecar
+          emptyDir:
+            sizeLimit: 50Mi
+        - name: handshakes
+          emptyDir:
+            sizeLimit: 50Mi

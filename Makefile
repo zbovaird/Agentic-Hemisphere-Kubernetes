@@ -63,12 +63,14 @@ cloud-build: preflight ## Build and push images via Cloud Build (no local Docker
 
 build: ## Build Docker images locally (requires Docker)
 	docker build -t $(REGISTRY)/rh-planner:latest docker/rh-planner/
+	docker build -t $(REGISTRY)/rh-sidecar:latest docker/rh-sidecar/
 	docker build -t $(REGISTRY)/lh-executor:latest docker/lh-executor/
 	docker build -t $(REGISTRY)/operator:latest operator/
 
 push: ## Push locally-built images to Artifact Registry
 	gcloud auth configure-docker $(GCP_REGION)-docker.pkg.dev --quiet
 	docker push $(REGISTRY)/rh-planner:latest
+	docker push $(REGISTRY)/rh-sidecar:latest
 	docker push $(REGISTRY)/lh-executor:latest
 	docker push $(REGISTRY)/operator:latest
 

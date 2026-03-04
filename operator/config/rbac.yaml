@@ -55,3 +55,28 @@ metadata:
   namespace: owner
   annotations:
     iam.gke.io/gcp-service-account: "rh-planner-sa@PROJECT_ID.iam.gserviceaccount.com"
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: rh-sidecar
+rules:
+  - apiGroups: ["hemisphere.ai"]
+    resources: ["agenttasks"]
+    verbs: ["get", "list", "watch", "create", "update", "patch"]
+  - apiGroups: [""]
+    resources: ["pods"]
+    verbs: ["get", "list"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: rh-sidecar
+subjects:
+  - kind: ServiceAccount
+    name: rh-planner
+    namespace: owner
+roleRef:
+  kind: ClusterRole
+  name: rh-sidecar
+  apiGroup: rbac.authorization.k8s.io

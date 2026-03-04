@@ -6,7 +6,6 @@ import json
 import sys
 from pathlib import Path
 from typing import Any
-from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import yaml
@@ -53,7 +52,7 @@ class TestCRDSchema:
     def test_crd_task_type_enum(self, crd: dict) -> None:
         schema = crd["spec"]["versions"][0]["schema"]["openAPIV3Schema"]
         task_type = schema["properties"]["spec"]["properties"]["task_type"]
-        assert set(task_type["enum"]) == {"execute", "test", "lint"}
+        assert set(task_type["enum"]) == {"execute", "test", "lint", "standby"}
 
     def test_crd_has_status_fields(self, crd: dict) -> None:
         schema = crd["spec"]["versions"][0]["schema"]["openAPIV3Schema"]
@@ -66,7 +65,8 @@ class TestCRDSchema:
     def test_crd_status_phase_enum(self, crd: dict) -> None:
         schema = crd["spec"]["versions"][0]["schema"]["openAPIV3Schema"]
         phase = schema["properties"]["status"]["properties"]["phase"]
-        assert set(phase["enum"]) == {"Pending", "Running", "Completed", "Failed", "Escalated"}
+        expected = {"Pending", "Running", "Standby", "Completed", "Failed", "Escalated"}
+        assert set(phase["enum"]) == expected
 
     def test_crd_has_status_subresource(self, crd: dict) -> None:
         subresources = crd["spec"]["versions"][0]["subresources"]
@@ -200,16 +200,7 @@ class TestOperatorLogic:
             "payload": {"command": "echo hello"},
             "target_model": "gemini-2.5-flash",
         }
-        owner_ref = {
-            "apiVersion": "hemisphere.ai/v1",
-            "kind": "AgentTask",
-            "name": "test-task",
-            "uid": "abc-123",
-            "blockOwnerDeletion": True,
-            "controller": True,
-        }
-
-        manifest = _build_pod_manifest("test-task", "owner", spec, owner_ref)
+        manifest = _build_pod_manifest("test-task", "owner", spec)
 
         assert manifest["metadata"]["namespace"] == "employee"
         assert manifest["metadata"]["labels"]["app"] == "lh-executor"
@@ -234,15 +225,6 @@ class TestOperatorLogic:
 
         long_name = "a" * 100
         spec = {"intent_id": long_name, "task_type": "test"}
-        owner_ref = {
-            "apiVersion": "hemisphere.ai/v1",
-            "kind": "AgentTask",
-            "name": long_name,
-            "uid": "xyz",
-            "blockOwnerDeletion": True,
-            "controller": True,
-        }
-
-        manifest = _build_pod_manifest(long_name, "owner", spec, owner_ref)
+        manifest = _build_pod_manifest(long_name, "owner", spec)
         assert len(manifest["metadata"]["name"]) <= 63
         assert len(manifest["metadata"]["labels"]["intent-id"]) <= 63

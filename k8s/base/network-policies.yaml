@@ -84,6 +84,7 @@ spec:
         - protocol: TCP
           port: 8080
   egress:
+    # External HTTPS (Vertex AI, etc.)
     - to:
         - ipBlock:
             cidr: 0.0.0.0/0
@@ -94,6 +95,16 @@ spec:
       ports:
         - protocol: TCP
           port: 443
+    # K8s API server (sidecar needs this for AgentTask CRs and pod listing)
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 6443
+    # DNS
     - to:
         - namespaceSelector: {}
           podSelector:
