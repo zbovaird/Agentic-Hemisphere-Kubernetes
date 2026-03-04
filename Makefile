@@ -11,7 +11,7 @@ PYTEST := $(VENV)/bin/pytest
 RUFF := $(VENV)/bin/ruff
 
 GCP_PROJECT ?= $(shell grep -s 'project_id' terraform/terraform.tfvars 2>/dev/null | cut -d'"' -f2)
-GCP_REGION ?= us-central1
+GCP_REGION ?= $(shell grep -s 'region' terraform/terraform.tfvars 2>/dev/null | cut -d'"' -f2 || echo "us-east1")
 REGISTRY ?= $(GCP_REGION)-docker.pkg.dev/$(GCP_PROJECT)/hemisphere-repo
 
 help: ## Show this help

@@ -10,36 +10,9 @@ echo "=== Agentic-Hemisphere-Kubernetes Deployment ==="
 echo ""
 
 # ---------------------------------------------------------------------------
-# Resolve GCP project and region
-# ---------------------------------------------------------------------------
-GCP_PROJECT="${GCP_PROJECT:-}"
-GCP_REGION="${GCP_REGION:-us-central1}"
-
-if [ -z "$GCP_PROJECT" ]; then
-    if [ -f terraform/terraform.tfvars ]; then
-        GCP_PROJECT=$(grep 'project_id' terraform/terraform.tfvars | cut -d'"' -f2)
-    else
-        echo "ERROR: GCP_PROJECT not set and terraform/terraform.tfvars not found."
-        echo "Either export GCP_PROJECT or:"
-        echo "  cp terraform/terraform.tfvars.example terraform/terraform.tfvars"
-        echo "  # then edit terraform.tfvars with your project_id"
-        exit 1
-    fi
-fi
-
-REGISTRY="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT}/hemisphere-repo"
-OVERLAY="${DEPLOY_OVERLAY:-dev}"
-
-echo "Project:  $GCP_PROJECT"
-echo "Region:   $GCP_REGION"
-echo "Registry: $REGISTRY"
-echo "Overlay:  $OVERLAY"
-echo ""
-
-# ---------------------------------------------------------------------------
 # Step 0: Preflight checks
 # ---------------------------------------------------------------------------
-echo "--- Step 0/6: Preflight checks ---"
+echo "--- Step 0/7: Preflight checks ---"
 
 MISSING=""
 for cmd in gcloud terraform kubectl bc; do
@@ -63,17 +36,13 @@ echo "All prerequisites found."
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 1: Model configuration
+# Step 1: Model configuration (always interactive)
 # ---------------------------------------------------------------------------
-echo "--- Step 1/6: Model configuration ---"
+echo "--- Step 1/7: Model configuration ---"
 
 CONFIG_FILE="${PROJECT_ROOT}/.hemisphere.env"
 
-if [ ! -f "$CONFIG_FILE" ]; then
-    echo "No model configuration found. Running interactive setup..."
-    echo ""
-    "${SCRIPT_DIR}/configure.sh"
-fi
+"${SCRIPT_DIR}/configure.sh"
 
 # shellcheck source=/dev/null
 source "$CONFIG_FILE"
@@ -86,9 +55,99 @@ echo "Emissary model: $LH_MODEL"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 1b: GitHub linking (optional)
+# Step 2: GCP project and region selection
 # ---------------------------------------------------------------------------
+echo "--- Step 2/7: GCP project and region ---"
+
+GCP_PROJECT="${GCP_PROJECT:-}"
+
+if [ -z "$GCP_PROJECT" ]; then
+    if [ -f terraform/terraform.tfvars ]; then
+        GCP_PROJECT=$(grep 'project_id' terraform/terraform.tfvars | cut -d'"' -f2)
+    fi
+fi
+
+if [ -z "$GCP_PROJECT" ] || [ "$GCP_PROJECT" = "your-gcp-project-id" ]; then
+    echo ""
+    echo "  No GCP project configured."
+    read -rp "  Enter your GCP Project ID: " GCP_PROJECT
+    if [ -z "$GCP_PROJECT" ]; then
+        echo "  ERROR: Project ID is required."
+        exit 1
+    fi
+fi
+
+echo ""
+echo "  GCP Project: $GCP_PROJECT"
+echo ""
+
+# --- Region selection ---
+echo "  Select a GCP region for deployment:"
+echo ""
+
+declare -a REGIONS
+REGIONS[1]="us-east1"
+REGIONS[2]="us-central1"
+REGIONS[3]="us-west1"
+REGIONS[4]="europe-west1"
+REGIONS[5]="europe-west4"
+REGIONS[6]="asia-southeast1"
+REGIONS[7]="asia-northeast1"
+
+declare -A REGION_DESC
+REGION_DESC[1]="South Carolina, USA"
+REGION_DESC[2]="Iowa, USA"
+REGION_DESC[3]="Oregon, USA"
+REGION_DESC[4]="Belgium, EU"
+REGION_DESC[5]="Netherlands, EU"
+REGION_DESC[6]="Singapore, Asia"
+REGION_DESC[7]="Tokyo, Japan"
+
+for i in $(seq 1 ${#REGIONS[@]}); do
+    printf "    %s) %-20s  %s\n" "$i" "${REGIONS[$i]}" "${REGION_DESC[$i]}"
+done
+
+echo ""
+read -rp "  Select region [1-${#REGIONS[@]}] (default: 1): " region_choice
+region_choice=${region_choice:-1}
+
+if [ -z "${REGIONS[$region_choice]+x}" ]; then
+    echo "  Invalid selection. Using default (us-east1)."
+    region_choice=1
+fi
+
+GCP_REGION="${REGIONS[$region_choice]}"
+echo ""
+echo "  Selected: $GCP_REGION (${REGION_DESC[$region_choice]})"
+echo ""
+
+# --- Write/update terraform.tfvars ---
 TFVARS_FILE="${PROJECT_ROOT}/terraform/terraform.tfvars"
+if [ ! -f "$TFVARS_FILE" ]; then
+    cp "${PROJECT_ROOT}/terraform/terraform.tfvars.example" "$TFVARS_FILE"
+fi
+
+# Update project_id and region in tfvars (portable sed for macOS and Linux)
+if sed --version 2>/dev/null | grep -q GNU; then
+    sed -i "s/^project_id.*/project_id   = \"${GCP_PROJECT}\"/" "$TFVARS_FILE"
+    sed -i "s/^region.*/region       = \"${GCP_REGION}\"/" "$TFVARS_FILE"
+else
+    sed -i '' "s/^project_id.*/project_id   = \"${GCP_PROJECT}\"/" "$TFVARS_FILE"
+    sed -i '' "s/^region.*/region       = \"${GCP_REGION}\"/" "$TFVARS_FILE"
+fi
+
+REGISTRY="${GCP_REGION}-docker.pkg.dev/${GCP_PROJECT}/hemisphere-repo"
+OVERLAY="${DEPLOY_OVERLAY:-dev}"
+
+echo "  Project:  $GCP_PROJECT"
+echo "  Region:   $GCP_REGION"
+echo "  Registry: $REGISTRY"
+echo "  Overlay:  $OVERLAY"
+echo ""
+
+# ---------------------------------------------------------------------------
+# Step 2b: GitHub linking (optional)
+# ---------------------------------------------------------------------------
 GITHUB_OWNER=""
 if [ -f "$TFVARS_FILE" ]; then
     GITHUB_OWNER=$(grep -s 'github_owner' "$TFVARS_FILE" | cut -d'"' -f2 || true)
@@ -142,9 +201,9 @@ if [ -z "$GITHUB_OWNER" ]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Step 2: Enable required GCP APIs
+# Step 3: Enable required GCP APIs
 # ---------------------------------------------------------------------------
-echo "--- Step 2/6: Enabling GCP APIs ---"
+echo "--- Step 3/7: Enabling GCP APIs ---"
 
 gcloud services enable \
     container.googleapis.com \
@@ -163,9 +222,9 @@ echo "APIs enabled."
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 3: Terraform
+# Step 4: Terraform
 # ---------------------------------------------------------------------------
-echo "--- Step 3/6: Provisioning infrastructure ---"
+echo "--- Step 4/7: Provisioning infrastructure ---"
 
 cd terraform
 terraform init
@@ -176,9 +235,9 @@ cd "$PROJECT_ROOT"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 4: Configure kubectl
+# Step 5: Configure kubectl
 # ---------------------------------------------------------------------------
-echo "--- Step 4/6: Configuring kubectl ---"
+echo "--- Step 5/7: Configuring kubectl ---"
 
 CLUSTER_NAME=$(cd terraform && terraform output -raw cluster_name)
 REGISTRY=$(cd terraform && terraform output -raw registry_url)
@@ -190,9 +249,9 @@ echo "Registry: $REGISTRY"
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 5: Build and push container images via Cloud Build
+# Step 6: Build and push container images via Cloud Build
 # ---------------------------------------------------------------------------
-echo "--- Step 5/6: Building container images (Cloud Build) ---"
+echo "--- Step 6/7: Building container images (Cloud Build) ---"
 
 gcloud services enable cloudbuild.googleapis.com --project="$GCP_PROJECT" --quiet
 
@@ -206,9 +265,9 @@ echo "Images built and pushed to ${REGISTRY} via Cloud Build."
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 6: Apply Kubernetes manifests
+# Step 7: Apply Kubernetes manifests
 # ---------------------------------------------------------------------------
-echo "--- Step 6/6: Applying Kubernetes manifests ---"
+echo "--- Step 7/7: Applying Kubernetes manifests ---"
 
 kubectl apply -f operator/crds/
 sed "s/PROJECT_ID/${GCP_PROJECT}/g" operator/config/rbac.yaml | kubectl apply -f -
