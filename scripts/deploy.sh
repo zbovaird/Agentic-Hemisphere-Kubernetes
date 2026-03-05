@@ -10,9 +10,133 @@ echo "=== Agentic-Hemisphere-Kubernetes Deployment ==="
 echo ""
 
 # ---------------------------------------------------------------------------
-# Step 0: Preflight checks
+# Step 0: Preflight checks and auto-install
 # ---------------------------------------------------------------------------
 echo "--- Step 0/7: Preflight checks ---"
+
+OS="$(uname)"
+HAS_BREW=false
+HAS_APT=false
+HAS_YUM=false
+if command -v brew >/dev/null 2>&1; then HAS_BREW=true; fi
+if command -v apt-get >/dev/null 2>&1; then HAS_APT=true; fi
+if command -v yum >/dev/null 2>&1; then HAS_YUM=true; fi
+
+_ensure_homebrew() {
+    if $HAS_BREW; then return 0; fi
+    echo ""
+    echo "  Homebrew is required to install dependencies on macOS."
+    read -rp "  Install Homebrew now? [Y/n]: " hb_choice
+    hb_choice=${hb_choice:-y}
+    if echo "$hb_choice" | grep -qi '^y'; then
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        if [ -f /opt/homebrew/bin/brew ]; then
+            eval "$(/opt/homebrew/bin/brew shellenv)"
+        elif [ -f /usr/local/bin/brew ]; then
+            eval "$(/usr/local/bin/brew shellenv)"
+        fi
+        HAS_BREW=true
+    else
+        echo "  ERROR: Cannot install dependencies without Homebrew."
+        exit 1
+    fi
+}
+
+_install_tool() {
+    local tool=$1
+    echo ""
+    echo "  '$tool' not found. Installing..."
+
+    case "$tool" in
+        gcloud)
+            if [ "$OS" = "Darwin" ]; then
+                _ensure_homebrew
+                brew install --cask google-cloud-sdk
+                # Source completions so gcloud is available in current shell
+                if [ -f "$(brew --prefix)/share/google-cloud-sdk/path.bash.inc" ]; then
+                    source "$(brew --prefix)/share/google-cloud-sdk/path.bash.inc"
+                fi
+            elif $HAS_APT; then
+                echo "  Installing Google Cloud SDK via apt..."
+                sudo apt-get update -qq
+                sudo apt-get install -y -qq apt-transport-https ca-certificates gnupg curl
+                curl -fsSL https://packages.cloud.google.com/apt/doc/apt-key.gpg | sudo gpg --dearmor -o /usr/share/keyrings/cloud.google.gpg 2>/dev/null
+                echo "deb [signed-by=/usr/share/keyrings/cloud.google.gpg] https://packages.cloud.google.com/apt cloud-sdk main" | sudo tee /etc/apt/sources.list.d/google-cloud-sdk.list >/dev/null
+                sudo apt-get update -qq && sudo apt-get install -y -qq google-cloud-cli
+            elif $HAS_YUM; then
+                sudo tee /etc/yum.repos.d/google-cloud-sdk.repo >/dev/null <<'YUMEOF'
+[google-cloud-cli]
+name=Google Cloud CLI
+baseurl=https://packages.cloud.google.com/yum/repos/cloud-sdk-el9-x86_64
+enabled=1
+gpgcheck=1
+repo_gpgcheck=0
+gpgkey=https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+YUMEOF
+                sudo yum install -y google-cloud-cli
+            else
+                echo "  ERROR: Cannot auto-install gcloud. Install manually:"
+                echo "    https://cloud.google.com/sdk/docs/install"
+                exit 1
+            fi
+            ;;
+
+        terraform)
+            if [ "$OS" = "Darwin" ]; then
+                _ensure_homebrew
+                brew tap hashicorp/tap
+                brew install hashicorp/tap/terraform
+            elif $HAS_APT; then
+                echo "  Installing Terraform via apt..."
+                sudo apt-get update -qq && sudo apt-get install -y -qq gnupg software-properties-common curl
+                curl -fsSL https://apt.releases.hashicorp.com/gpg | sudo gpg --dearmor -o /usr/share/keyrings/hashicorp-archive-keyring.gpg 2>/dev/null
+                echo "deb [signed-by=/usr/share/keyrings/hashicorp-archive-keyring.gpg] https://apt.releases.hashicorp.com $(lsb_release -cs) main" | sudo tee /etc/apt/sources.list.d/hashicorp.list >/dev/null
+                sudo apt-get update -qq && sudo apt-get install -y -qq terraform
+            elif $HAS_YUM; then
+                sudo yum install -y yum-utils
+                sudo yum-config-manager --add-repo https://rpm.releases.hashicorp.com/RHEL/hashicorp.repo
+                sudo yum install -y terraform
+            else
+                echo "  ERROR: Cannot auto-install terraform. Install manually:"
+                echo "    https://developer.hashicorp.com/terraform/install"
+                exit 1
+            fi
+            ;;
+
+        kubectl)
+            if command -v gcloud >/dev/null 2>&1; then
+                echo "  Installing kubectl via gcloud..."
+                gcloud components install kubectl --quiet
+            elif [ "$OS" = "Darwin" ]; then
+                _ensure_homebrew
+                brew install kubectl
+            elif $HAS_APT; then
+                sudo apt-get update -qq && sudo apt-get install -y -qq kubectl
+            elif $HAS_YUM; then
+                sudo yum install -y kubectl
+            else
+                echo "  ERROR: Cannot auto-install kubectl. Install manually:"
+                echo "    https://kubernetes.io/docs/tasks/tools/"
+                exit 1
+            fi
+            ;;
+
+        bc)
+            if [ "$OS" = "Darwin" ]; then
+                _ensure_homebrew
+                brew install bc
+            elif $HAS_APT; then
+                sudo apt-get update -qq && sudo apt-get install -y -qq bc
+            elif $HAS_YUM; then
+                sudo yum install -y bc
+            else
+                echo "  ERROR: Cannot auto-install bc. Install manually:"
+                echo "    brew install bc (macOS) or apt install bc (Linux)"
+                exit 1
+            fi
+            ;;
+    esac
+}
 
 MISSING=""
 for cmd in gcloud terraform kubectl bc; do
@@ -22,47 +146,38 @@ for cmd in gcloud terraform kubectl bc; do
 done
 
 if [ -n "$MISSING" ]; then
-    echo "ERROR: Required tools not found:$MISSING"
+    echo "  Missing tools:$MISSING"
     echo ""
-    echo "Install the missing tools before running this script:"
-    echo "  gcloud    -> https://cloud.google.com/sdk/docs/install"
-    echo "  terraform -> https://developer.hashicorp.com/terraform/install"
-    echo "  kubectl   -> gcloud components install kubectl"
-    echo "  bc        -> brew install bc (macOS) or apt install bc (Linux)"
-    exit 1
-fi
+    read -rp "  Install them automatically? [Y/n]: " auto_install
+    auto_install=${auto_install:-y}
 
-# --- Check for Bash 4+ (needed by configure.sh on some older versions) ---
-# The scripts are now Bash 3.2 compatible, but we still verify a sane shell.
-BASH_MAJOR="${BASH_VERSINFO[0]:-0}"
-if [ "$BASH_MAJOR" -lt 3 ]; then
-    echo ""
-    echo "WARNING: Bash $BASH_VERSION detected. Bash 3.2+ is required."
-    echo ""
-    if [ "$(uname)" = "Darwin" ]; then
-        echo "  Install a newer Bash with Homebrew:"
-        echo "    brew install bash"
-        echo ""
-        read -rp "  Install now? [Y/n]: " install_bash
-        install_bash=${install_bash:-y}
-        if echo "$install_bash" | grep -qi '^y'; then
-            if command -v brew >/dev/null 2>&1; then
-                brew install bash
-                echo ""
-                echo "  Bash installed. Please re-run: make deploy"
-                exit 0
-            else
-                echo "  ERROR: Homebrew not found. Install from https://brew.sh"
-                exit 1
+    if echo "$auto_install" | grep -qi '^y'; then
+        for cmd in $MISSING; do
+            _install_tool "$cmd"
+        done
+
+        # Verify everything installed
+        STILL_MISSING=""
+        for cmd in gcloud terraform kubectl bc; do
+            if ! command -v "$cmd" >/dev/null 2>&1; then
+                STILL_MISSING="$STILL_MISSING $cmd"
             fi
-        else
-            echo "  Cannot continue without Bash 3.2+."
+        done
+        if [ -n "$STILL_MISSING" ]; then
+            echo ""
+            echo "  ERROR: Failed to install:$STILL_MISSING"
+            echo "  Please install them manually and re-run: make deploy"
             exit 1
         fi
+        echo ""
+        echo "  All tools installed successfully."
     else
-        echo "  Install a newer Bash with your package manager:"
-        echo "    apt install bash  (Debian/Ubuntu)"
-        echo "    yum install bash  (RHEL/CentOS)"
+        echo ""
+        echo "  Install the missing tools manually before running this script:"
+        echo "    gcloud    -> https://cloud.google.com/sdk/docs/install"
+        echo "    terraform -> https://developer.hashicorp.com/terraform/install"
+        echo "    kubectl   -> gcloud components install kubectl"
+        echo "    bc        -> brew install bc (macOS) or apt install bc (Linux)"
         exit 1
     fi
 fi
