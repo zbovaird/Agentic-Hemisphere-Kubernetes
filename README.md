@@ -111,27 +111,26 @@ For first-time setup, see [CHROME_INSTRUCTIONS.md](CHROME_INSTRUCTIONS.md) for a
 ## Quickstart
 
 ```bash
-# 1. Clone the repo
+# 1. Clone and deploy (the script handles auth, model selection, and region)
 git clone https://github.com/zbovaird/Agentic-Hemisphere-Kubernetes.git
 cd Agentic-Hemisphere-Kubernetes
-
-# 2. Set up Python environment
-make setup
-source .venv/bin/activate
-
-# 3. Run tests (no cluster needed)
-make test
-
-# 4. Authenticate with GCP
-gcloud auth login
-gcloud auth application-default login
-
-# 5. Configure Terraform
-cp terraform/terraform.tfvars.example terraform/terraform.tfvars
-# Edit terraform.tfvars with your project_id
-
-# 6. Deploy everything
 make deploy
+```
+
+The deploy script walks you through everything interactively:
+- **Preflight check** -- verifies `gcloud`, `terraform`, `kubectl`, and `bc` are installed
+- **GCP authentication** -- prompts `gcloud auth login` if not already authenticated
+- **Model selection** -- choose your Master (RH) and Emissary (LH) models with pricing estimates
+- **Region selection** -- pick from 7 GCP regions
+- **Infrastructure provisioning** -- Terraform creates the GKE cluster, IAM, and supporting services
+- **Image build** -- Cloud Build compiles and pushes container images (no local Docker needed)
+- **Kubernetes deployment** -- CRDs, RBAC, and workloads applied to the cluster
+
+To run tests locally (no cluster needed):
+
+```bash
+make setup && source .venv/bin/activate
+make test
 ```
 
 ## Container Images

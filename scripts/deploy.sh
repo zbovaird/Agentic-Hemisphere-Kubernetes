@@ -16,7 +16,7 @@ echo "--- Step 0/7: Preflight checks ---"
 
 MISSING=""
 for cmd in gcloud terraform kubectl bc; do
-    if ! command -v "$cmd" &>/dev/null; then
+    if ! command -v "$cmd" >/dev/null 2>&1; then
         MISSING="$MISSING $cmd"
     fi
 done
@@ -30,6 +30,51 @@ if [ -n "$MISSING" ]; then
     echo "  kubectl   -> gcloud components install kubectl"
     echo "  bc        -> brew install bc (macOS) or apt install bc (Linux)"
     exit 1
+fi
+
+# --- Check for Bash 4+ (needed by configure.sh on some older versions) ---
+# The scripts are now Bash 3.2 compatible, but we still verify a sane shell.
+BASH_MAJOR="${BASH_VERSINFO[0]:-0}"
+if [ "$BASH_MAJOR" -lt 3 ]; then
+    echo ""
+    echo "WARNING: Bash $BASH_VERSION detected. Bash 3.2+ is required."
+    echo ""
+    if [ "$(uname)" = "Darwin" ]; then
+        echo "  Install a newer Bash with Homebrew:"
+        echo "    brew install bash"
+        echo ""
+        read -rp "  Install now? [Y/n]: " install_bash
+        install_bash=${install_bash:-y}
+        if echo "$install_bash" | grep -qi '^y'; then
+            if command -v brew >/dev/null 2>&1; then
+                brew install bash
+                echo ""
+                echo "  Bash installed. Please re-run: make deploy"
+                exit 0
+            else
+                echo "  ERROR: Homebrew not found. Install from https://brew.sh"
+                exit 1
+            fi
+        else
+            echo "  Cannot continue without Bash 3.2+."
+            exit 1
+        fi
+    else
+        echo "  Install a newer Bash with your package manager:"
+        echo "    apt install bash  (Debian/Ubuntu)"
+        echo "    yum install bash  (RHEL/CentOS)"
+        exit 1
+    fi
+fi
+
+# --- Check gcloud authentication ---
+if ! gcloud auth print-access-token >/dev/null 2>&1; then
+    echo ""
+    echo "  GCP authentication required."
+    echo "  Running: gcloud auth login"
+    echo ""
+    gcloud auth login
+    gcloud auth application-default login
 fi
 
 echo "All prerequisites found."
@@ -81,44 +126,37 @@ echo ""
 echo "  GCP Project: $GCP_PROJECT"
 echo ""
 
-# --- Region selection ---
+# --- Region selection (Bash 3.2 compatible) ---
 echo "  Select a GCP region for deployment:"
 echo ""
 
-declare -a REGIONS
-REGIONS[1]="us-east1"
-REGIONS[2]="us-central1"
-REGIONS[3]="us-west1"
-REGIONS[4]="europe-west1"
-REGIONS[5]="europe-west4"
-REGIONS[6]="asia-southeast1"
-REGIONS[7]="asia-northeast1"
-
-declare -A REGION_DESC
-REGION_DESC[1]="South Carolina, USA"
-REGION_DESC[2]="Iowa, USA"
-REGION_DESC[3]="Oregon, USA"
-REGION_DESC[4]="Belgium, EU"
-REGION_DESC[5]="Netherlands, EU"
-REGION_DESC[6]="Singapore, Asia"
-REGION_DESC[7]="Tokyo, Japan"
-
-for i in $(seq 1 ${#REGIONS[@]}); do
-    printf "    %s) %-20s  %s\n" "$i" "${REGIONS[$i]}" "${REGION_DESC[$i]}"
-done
+REGION_COUNT=7
+printf "    %s) %-20s  %s\n" "1" "us-east1"          "South Carolina, USA"
+printf "    %s) %-20s  %s\n" "2" "us-central1"       "Iowa, USA"
+printf "    %s) %-20s  %s\n" "3" "us-west1"          "Oregon, USA"
+printf "    %s) %-20s  %s\n" "4" "europe-west1"      "Belgium, EU"
+printf "    %s) %-20s  %s\n" "5" "europe-west4"      "Netherlands, EU"
+printf "    %s) %-20s  %s\n" "6" "asia-southeast1"   "Singapore, Asia"
+printf "    %s) %-20s  %s\n" "7" "asia-northeast1"   "Tokyo, Japan"
 
 echo ""
-read -rp "  Select region [1-${#REGIONS[@]}] (default: 1): " region_choice
+read -rp "  Select region [1-${REGION_COUNT}] (default: 1): " region_choice
 region_choice=${region_choice:-1}
 
-if [ -z "${REGIONS[$region_choice]+x}" ]; then
-    echo "  Invalid selection. Using default (us-east1)."
-    region_choice=1
-fi
+case "$region_choice" in
+    1) GCP_REGION="us-east1";        region_label="South Carolina, USA";;
+    2) GCP_REGION="us-central1";     region_label="Iowa, USA";;
+    3) GCP_REGION="us-west1";        region_label="Oregon, USA";;
+    4) GCP_REGION="europe-west1";    region_label="Belgium, EU";;
+    5) GCP_REGION="europe-west4";    region_label="Netherlands, EU";;
+    6) GCP_REGION="asia-southeast1"; region_label="Singapore, Asia";;
+    7) GCP_REGION="asia-northeast1"; region_label="Tokyo, Japan";;
+    *) echo "  Invalid selection. Using default (us-east1)."
+       GCP_REGION="us-east1"; region_label="South Carolina, USA";;
+esac
 
-GCP_REGION="${REGIONS[$region_choice]}"
 echo ""
-echo "  Selected: $GCP_REGION (${REGION_DESC[$region_choice]})"
+echo "  Selected: $GCP_REGION ($region_label)"
 echo ""
 
 # --- Write/update terraform.tfvars ---
