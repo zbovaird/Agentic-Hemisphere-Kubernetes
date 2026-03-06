@@ -445,6 +445,37 @@ echo "APIs enabled."
 echo ""
 
 # ---------------------------------------------------------------------------
+# Step 3b: Ensure Compute Engine default service account is enabled
+# ---------------------------------------------------------------------------
+PROJECT_NUMBER=$(gcloud projects describe "$GCP_PROJECT" --format='value(projectNumber)' 2>/dev/null || true)
+
+if [ -n "$PROJECT_NUMBER" ]; then
+    COMPUTE_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+    SA_STATUS=$(gcloud iam service-accounts describe "$COMPUTE_SA" \
+        --project="$GCP_PROJECT" --format='value(disabled)' 2>/dev/null || true)
+
+    if [ "$SA_STATUS" = "True" ]; then
+        echo "  Compute Engine default service account is disabled."
+        echo "  Re-enabling: $COMPUTE_SA"
+        echo ""
+        if ! gcloud iam service-accounts enable "$COMPUTE_SA" --project="$GCP_PROJECT" 2>/dev/null; then
+            echo ""
+            echo "  ERROR: Could not re-enable the Compute Engine service account."
+            echo "  Please enable it manually in the GCP Console:"
+            echo "    https://console.cloud.google.com/iam-admin/serviceaccounts?project=${GCP_PROJECT}"
+            echo ""
+            echo "  Or run:"
+            echo "    gcloud iam service-accounts enable ${COMPUTE_SA} --project=${GCP_PROJECT}"
+            echo ""
+            echo "  Then re-run: make deploy"
+            exit 1
+        fi
+        echo "  Service account re-enabled."
+        echo ""
+    fi
+fi
+
+# ---------------------------------------------------------------------------
 # Step 4: Terraform
 # ---------------------------------------------------------------------------
 echo "--- Step 4/7: Provisioning infrastructure ---"
