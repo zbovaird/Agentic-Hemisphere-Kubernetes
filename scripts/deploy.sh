@@ -491,6 +491,17 @@ _needs_import() {
     return 0
 }
 
+_try_import() {
+    local addr="$1" id="$2" label="$3"
+    echo "  Importing existing ${label} into Terraform state..."
+    if terraform import "$addr" "$id"; then
+        return 0
+    else
+        echo "  WARNING: Failed to import ${label} -- terraform apply will attempt to create it"
+        return 1
+    fi
+}
+
 _try_import_gke() {
     if [ -f terraform.tfvars ]; then
         CLUSTER_NAME=$(grep '^cluster_name' terraform.tfvars 2>/dev/null | sed 's/.*= *"//;s/".*//' || true)
@@ -498,22 +509,20 @@ _try_import_gke() {
     CLUSTER_NAME="${CLUSTER_NAME:-hemisphere-cluster}"
     if gcloud container clusters describe "$CLUSTER_NAME" \
         --region="$GCP_REGION" --project="$GCP_PROJECT" >/dev/null 2>&1; then
-        echo "  Importing existing GKE cluster into Terraform state..."
-        terraform import \
+        _try_import \
             'module.gke.google_container_cluster.autopilot' \
             "projects/${GCP_PROJECT}/locations/${GCP_REGION}/clusters/${CLUSTER_NAME}" \
-            2>/dev/null || true
+            "GKE cluster" || true
     fi
 }
 
 _try_import_registry() {
     if gcloud artifacts repositories describe hemisphere-repo \
         --location="$GCP_REGION" --project="$GCP_PROJECT" >/dev/null 2>&1; then
-        echo "  Importing existing Artifact Registry into Terraform state..."
-        terraform import \
+        _try_import \
             'module.registry.google_artifact_registry_repository.hemisphere' \
             "projects/${GCP_PROJECT}/locations/${GCP_REGION}/repositories/hemisphere-repo" \
-            2>/dev/null || true
+            "Artifact Registry" || true
     fi
 }
 
@@ -523,11 +532,14 @@ _try_import_vertex() {
         --filter="displayName='hemisphere-endpoint'" \
         --format='value(name)' 2>/dev/null | head -1 || true)
     if [ -n "$ENDPOINT_ID" ]; then
-        echo "  Importing existing Vertex AI Endpoint into Terraform state..."
-        terraform import \
+        if ! _try_import \
             'module.vertex.google_vertex_ai_endpoint.hemisphere' \
             "$ENDPOINT_ID" \
-            2>/dev/null || true
+            "Vertex AI Endpoint"; then
+            echo "  Deleting orphaned Vertex AI Endpoint so Terraform can recreate it..."
+            gcloud ai endpoints delete "$ENDPOINT_ID" \
+                --region="$GCP_REGION" --project="$GCP_PROJECT" --quiet 2>/dev/null || true
+        fi
     fi
 }
 
@@ -541,19 +553,27 @@ _try_import_iam() {
         if _needs_import "$addr"; then
             if gcloud iam service-accounts describe "${sa_id}@${GCP_PROJECT}.iam.gserviceaccount.com" \
                 --project="$GCP_PROJECT" >/dev/null 2>&1; then
-                echo "  Importing existing service account ${sa_id} into Terraform state..."
-                terraform import "$addr" \
+                _try_import "$addr" \
                     "projects/${GCP_PROJECT}/serviceAccounts/${sa_id}@${GCP_PROJECT}.iam.gserviceaccount.com" \
-                    2>/dev/null || true
+                    "service account ${sa_id}" || true
             fi
         fi
     done
 }
 
-echo "  Checking for pre-existing GCP resources to import..."
+# Phase 1: Ensure the GKE cluster exists so the Kubernetes provider can
+# initialize. Without this, terraform import for K8s resources (namespaces,
+# quotas) and even non-K8s resources will fail because the provider config
+# references the cluster endpoint.
+echo "  Phase 1: Ensuring GKE cluster is available..."
 if _needs_import 'module.gke.google_container_cluster.autopilot'; then
     _try_import_gke
 fi
+terraform apply -target=module.gke -auto-approve
+
+# Phase 2: Import any pre-existing GCP resources that survived a previous
+# teardown (e.g. Vertex AI endpoints, service accounts, Artifact Registry).
+echo "  Phase 2: Checking for pre-existing GCP resources to import..."
 if _needs_import 'module.registry.google_artifact_registry_repository.hemisphere'; then
     _try_import_registry
 fi
@@ -562,6 +582,8 @@ if _needs_import 'module.vertex.google_vertex_ai_endpoint.hemisphere'; then
 fi
 _try_import_iam
 
+# Phase 3: Full apply for all remaining resources.
+echo "  Phase 3: Applying full infrastructure..."
 terraform plan -out=tfplan
 terraform apply tfplan
 cd "$PROJECT_ROOT"
