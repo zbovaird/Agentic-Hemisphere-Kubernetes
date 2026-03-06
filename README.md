@@ -110,17 +110,20 @@ For first-time setup, see [CHROME_INSTRUCTIONS.md](CHROME_INSTRUCTIONS.md) for a
 
 ## Quickstart
 
+**New to GCP?** Follow [CHROME_INSTRUCTIONS.md](CHROME_INSTRUCTIONS.md) first to create a project, set up billing, and configure a budget. Then come back here.
+
 ```bash
-# 1. Clone and deploy (the script handles auth, model selection, and region)
+# 1. Clone and deploy (the script handles everything)
 git clone https://github.com/zbovaird/Agentic-Hemisphere-Kubernetes.git
 cd Agentic-Hemisphere-Kubernetes
 make deploy
 ```
 
 The deploy script walks you through everything interactively:
-- **Preflight check** -- verifies `gcloud`, `terraform`, `kubectl`, and `bc` are installed
-- **GCP authentication** -- prompts `gcloud auth login` if not already authenticated
-- **Model selection** -- choose your Master (RH) and Emissary (LH) models with pricing estimates
+- **Preflight check** -- verifies `gcloud`, `terraform`, `kubectl`, and `bc` are installed; offers to install any that are missing
+- **GCP authentication** -- opens your browser for `gcloud auth login` if not already authenticated
+- **Project detection** -- auto-detects your GCP project from gcloud config or terraform.tfvars; confirms with you before proceeding
+- **Model selection** -- choose your main agent and sub-agent models with pricing estimates
 - **Region selection** -- pick from 7 GCP regions
 - **Infrastructure provisioning** -- Terraform creates the GKE cluster, IAM, and supporting services
 - **Image build** -- Cloud Build compiles and pushes container images (no local Docker needed)

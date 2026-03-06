@@ -186,10 +186,50 @@ fi
 if ! gcloud auth print-access-token >/dev/null 2>&1; then
     echo ""
     echo "  GCP authentication required."
-    echo "  Running: gcloud auth login"
+    echo "  Opening your browser to sign in to Google Cloud..."
     echo ""
-    gcloud auth login
-    gcloud auth application-default login
+    if ! gcloud auth login --launch-browser 2>/dev/null; then
+        echo ""
+        echo "  Browser did not open automatically."
+        echo "  Run this command manually and follow the URL it prints:"
+        echo ""
+        echo "    gcloud auth login --no-launch-browser"
+        echo ""
+        echo "  Then re-run: make deploy"
+        exit 1
+    fi
+
+    echo ""
+    echo "  Setting up application-default credentials..."
+    echo "  Your browser will open once more."
+    echo ""
+    if ! gcloud auth application-default login --launch-browser 2>/dev/null; then
+        echo ""
+        echo "  Browser did not open automatically."
+        echo "  Run this command manually:"
+        echo ""
+        echo "    gcloud auth application-default login --no-launch-browser"
+        echo ""
+        echo "  Then re-run: make deploy"
+        exit 1
+    fi
+
+    if ! gcloud auth print-access-token >/dev/null 2>&1; then
+        echo ""
+        echo "  ERROR: Authentication failed. Please run these manually:"
+        echo "    gcloud auth login"
+        echo "    gcloud auth application-default login"
+        echo ""
+        echo "  Then re-run: make deploy"
+        exit 1
+    fi
+    echo ""
+    echo "  Authenticated successfully."
+else
+    AUTHED_ACCOUNT=$(gcloud config get-value account 2>/dev/null || true)
+    if [ -n "$AUTHED_ACCOUNT" ]; then
+        echo "  Authenticated as: $AUTHED_ACCOUNT"
+    fi
 fi
 
 echo "All prerequisites found."
@@ -221,15 +261,45 @@ echo "--- Step 2/7: GCP project and region ---"
 
 GCP_PROJECT="${GCP_PROJECT:-}"
 
-if [ -z "$GCP_PROJECT" ]; then
+# 1. Check terraform.tfvars
+if [ -z "$GCP_PROJECT" ] || [ "$GCP_PROJECT" = "your-gcp-project-id" ]; then
     if [ -f terraform/terraform.tfvars ]; then
         GCP_PROJECT=$(grep 'project_id' terraform/terraform.tfvars | cut -d'"' -f2)
     fi
 fi
 
+# 2. Check gcloud config
+if [ -z "$GCP_PROJECT" ] || [ "$GCP_PROJECT" = "your-gcp-project-id" ]; then
+    GCP_PROJECT=$(gcloud config get-value project 2>/dev/null || true)
+fi
+
+# 3. If found, confirm with user (they may have multiple projects)
+if [ -n "$GCP_PROJECT" ] && [ "$GCP_PROJECT" != "your-gcp-project-id" ]; then
+    echo ""
+    echo "  Detected GCP Project: $GCP_PROJECT"
+    read -rp "  Use this project? [Y/n] or type a different Project ID: " project_input
+    project_input=${project_input:-y}
+
+    if echo "$project_input" | grep -qi '^y$'; then
+        : # keep current GCP_PROJECT
+    elif echo "$project_input" | grep -qi '^n$'; then
+        read -rp "  Enter your GCP Project ID: " GCP_PROJECT
+    else
+        GCP_PROJECT="$project_input"
+    fi
+fi
+
+# 4. Still no project -- guide user to create one
 if [ -z "$GCP_PROJECT" ] || [ "$GCP_PROJECT" = "your-gcp-project-id" ]; then
     echo ""
-    echo "  No GCP project configured."
+    echo "  No GCP project found."
+    echo ""
+    echo "  If you don't have a project yet, create one in your browser:"
+    echo "    https://console.cloud.google.com/projectcreate"
+    echo ""
+    echo "  For a full walkthrough (billing, budget, APIs), see:"
+    echo "    CHROME_INSTRUCTIONS.md"
+    echo ""
     read -rp "  Enter your GCP Project ID: " GCP_PROJECT
     if [ -z "$GCP_PROJECT" ]; then
         echo "  ERROR: Project ID is required."
