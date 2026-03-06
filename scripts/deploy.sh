@@ -483,6 +483,29 @@ echo "--- Step 4/7: Provisioning infrastructure ---"
 cd terraform
 terraform init
 
+_needs_import() {
+    local addr="$1"
+    if terraform state list 2>/dev/null | grep -q "^${addr}$"; then
+        return 1
+    fi
+    return 0
+}
+
+_try_import_gke() {
+    if [ -f terraform.tfvars ]; then
+        CLUSTER_NAME=$(grep '^cluster_name' terraform.tfvars 2>/dev/null | sed 's/.*= *"//;s/".*//' || true)
+    fi
+    CLUSTER_NAME="${CLUSTER_NAME:-hemisphere-cluster}"
+    if gcloud container clusters describe "$CLUSTER_NAME" \
+        --region="$GCP_REGION" --project="$GCP_PROJECT" >/dev/null 2>&1; then
+        echo "  Importing existing GKE cluster into Terraform state..."
+        terraform import \
+            'module.gke.google_container_cluster.autopilot' \
+            "projects/${GCP_PROJECT}/locations/${GCP_REGION}/clusters/${CLUSTER_NAME}" \
+            2>/dev/null || true
+    fi
+}
+
 _try_import_registry() {
     if gcloud artifacts repositories describe hemisphere-repo \
         --location="$GCP_REGION" --project="$GCP_PROJECT" >/dev/null 2>&1; then
@@ -508,12 +531,36 @@ _try_import_vertex() {
     fi
 }
 
-STATE_COUNT=$(terraform state list 2>/dev/null | wc -l || echo 0)
-if [ "$STATE_COUNT" -lt 2 ]; then
-    echo "  Checking for pre-existing GCP resources to import..."
+_try_import_iam() {
+    local sa_ids="rh-planner-sa lh-executor-sa hemisphere-operator-sa"
+    local tf_names="rh_planner lh_executor operator"
+    set -- $tf_names
+    for sa_id in $sa_ids; do
+        tf_name="$1"; shift
+        addr="module.iam.google_service_account.${tf_name}"
+        if _needs_import "$addr"; then
+            if gcloud iam service-accounts describe "${sa_id}@${GCP_PROJECT}.iam.gserviceaccount.com" \
+                --project="$GCP_PROJECT" >/dev/null 2>&1; then
+                echo "  Importing existing service account ${sa_id} into Terraform state..."
+                terraform import "$addr" \
+                    "projects/${GCP_PROJECT}/serviceAccounts/${sa_id}@${GCP_PROJECT}.iam.gserviceaccount.com" \
+                    2>/dev/null || true
+            fi
+        fi
+    done
+}
+
+echo "  Checking for pre-existing GCP resources to import..."
+if _needs_import 'module.gke.google_container_cluster.autopilot'; then
+    _try_import_gke
+fi
+if _needs_import 'module.registry.google_artifact_registry_repository.hemisphere'; then
     _try_import_registry
+fi
+if _needs_import 'module.vertex.google_vertex_ai_endpoint.hemisphere'; then
     _try_import_vertex
 fi
+_try_import_iam
 
 terraform plan -out=tfplan
 terraform apply tfplan
