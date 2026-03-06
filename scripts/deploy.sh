@@ -482,6 +482,39 @@ echo "--- Step 4/7: Provisioning infrastructure ---"
 
 cd terraform
 terraform init
+
+_try_import_registry() {
+    if gcloud artifacts repositories describe hemisphere-repo \
+        --location="$GCP_REGION" --project="$GCP_PROJECT" >/dev/null 2>&1; then
+        echo "  Importing existing Artifact Registry into Terraform state..."
+        terraform import \
+            'module.registry.google_artifact_registry_repository.hemisphere' \
+            "projects/${GCP_PROJECT}/locations/${GCP_REGION}/repositories/hemisphere-repo" \
+            2>/dev/null || true
+    fi
+}
+
+_try_import_vertex() {
+    ENDPOINT_ID=$(gcloud ai endpoints list \
+        --region="$GCP_REGION" --project="$GCP_PROJECT" \
+        --filter="displayName='hemisphere-endpoint'" \
+        --format='value(name)' 2>/dev/null | head -1 || true)
+    if [ -n "$ENDPOINT_ID" ]; then
+        echo "  Importing existing Vertex AI Endpoint into Terraform state..."
+        terraform import \
+            'module.vertex.google_vertex_ai_endpoint.hemisphere' \
+            "$ENDPOINT_ID" \
+            2>/dev/null || true
+    fi
+}
+
+STATE_COUNT=$(terraform state list 2>/dev/null | wc -l || echo 0)
+if [ "$STATE_COUNT" -lt 2 ]; then
+    echo "  Checking for pre-existing GCP resources to import..."
+    _try_import_registry
+    _try_import_vertex
+fi
+
 terraform plan -out=tfplan
 terraform apply tfplan
 cd "$PROJECT_ROOT"
